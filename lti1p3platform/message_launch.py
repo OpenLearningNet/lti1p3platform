@@ -160,8 +160,8 @@ class MessageLaunchAbstract(ABC):
         if not isinstance(context_types, list):
             raise TypeError("Invalid type for context_types. It must be a list.")
 
-        if context_claim_types:
-            context_claim_data["type"] = context_claim_types
+        if context_types:
+            context_claim_data["type"] = context_types
 
         if context_title:
             context_claim_data["title"] = context_title
@@ -207,7 +207,7 @@ class MessageLaunchAbstract(ABC):
             # Target Link URI: actual endpoint for the LTI resource to display
             # MUST be the same value as the target_link_uri passed by the platform in the OIDC login request
             # http://www.imsglobal.org/spec/lti/v1p3/#target-link-uri
-            "https://purl.imsglobal.org/spec/lti/claim/target_link_uri": self.self._registration.get_launch_url(),
+            "https://purl.imsglobal.org/spec/lti/claim/target_link_uri": self._registration.get_launch_url(),
         })
 
         if include_extra_claims:

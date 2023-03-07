@@ -1,4 +1,5 @@
 from jwcrypto.jwk import JWK
+import json
 
 class Registration:
     _iss = None
