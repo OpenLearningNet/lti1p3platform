@@ -1,6 +1,8 @@
 dist
 .venv
+.venv_*
 .tox
 .python-version
+.vscode
 
 *.pyc

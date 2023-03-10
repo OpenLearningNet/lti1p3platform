@@ -2,7 +2,7 @@
 LTI Deep Linking service implementation
 """
 from .constants import LTI_DEEP_LINKING_ACCEPTED_TYPES
-from .exceptsions import LtiDeepLinkingContentTypeNotSupported
+from .exceptions import LtiDeepLinkingContentTypeNotSupported
 
 class LtiDeepLinking:
     """

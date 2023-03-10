@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='lti1p3platform',
-    version='0.1.0',
+    version='0.1.3',
     description='LTI 1.3 Platform implementation',
     author='Jun Tu',
     author_email='jun@openlearning.com',
@@ -19,6 +19,8 @@ setup(
     ],
     python_requires='>=3.7',
     install_requires=[
-        # Add any other dependencies your library needs
+        "requests[security]",
+        "pyjwt[crypto]",
+        "jwcrypto"
     ],
 )

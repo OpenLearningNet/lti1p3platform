@@ -4,7 +4,7 @@ from urllib.parse import urlencode
 from abc import ABC, abstractmethod
 
 from .constants import LTI_BASE_MESSAGE
-from . import exceptsions
+from . import exceptions
 
 if typing.TYPE_CHECKING:
     from .registration import Registration
@@ -44,7 +44,7 @@ class OIDCLoginAbstract(ABC):
             assert self.get_lti_message_hint()
             assert user_id
         except AssertionError as err:
-            raise exceptsions.PreflightRequestValidationException from err
+            raise exceptions.PreflightRequestValidationException from err
 
         params = {
             "iss": self._registration.get_iss(),

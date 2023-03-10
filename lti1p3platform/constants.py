@@ -15,3 +15,21 @@ LTI_DEEP_LINKING_ACCEPTED_TYPES = {
     'html',
     'image',
 }
+
+LTI_1P3_ACCESS_TOKEN_REQUIRED_CLAIMS = {
+    "grant_type",
+    "client_assertion_type",
+    "client_assertion",
+    "scope",
+}
+
+LTI_1P3_ACCESS_TOKEN_SCOPES = [
+    # LTI-AGS Scopes
+    'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly',
+    'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem',
+    'https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly',
+    'https://purl.imsglobal.org/spec/lti-ags/scope/score',
+
+    # LTI-NRPS Scopes
+    'https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly',
+]

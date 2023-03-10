@@ -1,11 +1,10 @@
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict
 from abc import ABC, abstractmethod
-import jwt
 
 from .constants import LTI_BASE_MESSAGE
 
-from . import exceptsions
+from . import exceptions
 
 
 class MessageLaunchAbstract(ABC):
@@ -245,19 +244,7 @@ class MessageLaunchAbstract(ABC):
             assert preflight_response.get("redirect_uri")
             assert preflight_response.get("client_id") == self._registration.get_client_id()
         except AssertionError as err:
-            print(err)
-            raise exceptsions.PreflightRequestValidationException from err
-        
-    def sign_launch_message(self, launch_message) -> str:
-        headers = None
-        kid = self._registration.get_kid()
-        
-        if kid:
-            headers = {'kid': kid}
-
-        encoded_jwt = jwt.encode(launch_message, self._registration.get_platform_private_key(), algorithm='RS256', headers=headers)
-
-        return encoded_jwt.decode('utf-8')
+            raise exceptions.PreflightRequestValidationException from err
 
     def get_launch_data(self):
         preflight_response = self.get_preflight_response()
@@ -285,8 +272,11 @@ class MessageLaunchAbstract(ABC):
         """
         launch_message, state = self.get_launch_data()
         
+        assert self._registration is not None # type: Registration
         # sign launch message with private key
-        id_token = self.sign_launch_message(launch_message)
+        private_key = self._registration.get_platform_private_key()
+        headers = {'kid': self._registration.get_kid()}
+        id_token = self._registration.encode_and_sign(launch_message, private_key, headers)
         
         return {
             "state": state,
@@ -302,9 +292,6 @@ class MessageLaunchAbstract(ABC):
         # described in http://www.imsglobal.org/spec/lti/v1p3/#lti-message-general-details
         launch_data = self.generate_launch_request()
         return self.render_launch_form(launch_data, **kwargs)
-    
-    def get_public_keyset(self):
-        return self._registration.get_jwks()
 
 class LTIAdvantageMessageLaunchAbstract(MessageLaunchAbstract):
     _dl = None # deep linking service
@@ -328,7 +315,7 @@ class LTIAdvantageMessageLaunchAbstract(MessageLaunchAbstract):
             
             return {
                 "state": state,
-                "id_token": self.sign_launch_message(launch_message)
+                "id_token": self._registration.encode_and_sign(launch_message)
             }
     
         return super().generate_launch_request()
