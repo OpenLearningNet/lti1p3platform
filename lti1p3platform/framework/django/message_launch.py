@@ -3,7 +3,7 @@ from lti1p3platform.message_launch import MessageLaunchAbstract
 
 class DjangoLTI1P3MessageLaunch(MessageLaunchAbstract):
     def get_preflight_response(self) -> dict:
-        return self._request.GET or self._request.POST
+        return self._request.GET.dict() or self._request.POST.dict()
 
     def template_data(self, launch_data):
         raise NotImplementedError

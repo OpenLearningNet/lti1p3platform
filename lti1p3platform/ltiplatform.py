@@ -8,8 +8,8 @@ import jwt
 from jwcrypto.jwk import JWK
 
 from .registration import Registration
-from .constants import LTI_1P3_ACCESS_TOKEN_SCOPES, LTI_1P3_ACCESS_TOKEN_REQUIRED_CLAIMS
-from .exceptions import MissingRequiredClaim, UnsupportedGrantType, InvalidKeySetUrl, LtiException
+from .constants import LTI_1P3_ACCESS_TOKEN_SCOPES, LTI_1P3_ACCESS_TOKEN_REQUIRED_CLAIMS, LTI_DEEP_LINKING_ACCEPTED_TYPES
+from .exceptions import MissingRequiredClaim, UnsupportedGrantType, InvalidKeySetUrl, LtiException, LtiDeepLinkingResponseException
 
 class LTI1P3PlatformConfAbstract(ABC):
     _registration = None
@@ -144,7 +144,7 @@ class LTI1P3PlatformConfAbstract(ABC):
         
         public_key = self.get_tool_public_key()
         
-        jwt.decode(jwt_token_string, public_key, algorithms=['RS256'], options=self._jwt_verify_options)
+        return jwt.decode(jwt_token_string, public_key, algorithms=['RS256'], options=self._jwt_verify_options)
         
     def get_access_token(self, token_request_data):
         """
@@ -216,3 +216,30 @@ class LTI1P3PlatformConfAbstract(ABC):
             "expires_in": 3600,
             "scope": scopes_str
         }
+
+    def validate_deeplinking_resp(self, token_request_data):
+        jwt_token_string = token_request_data['JWT']
+        
+        deep_link_response = self.validate_and_decode(
+            jwt_token_string
+        )
+        
+        # Check the response is a Deep Linking response type
+        message_type = deep_link_response.get("https://purl.imsglobal.org/spec/lti/claim/message_type")
+        if not message_type == "LtiDeepLinkingResponse":
+            raise LtiDeepLinkingResponseException("Token isn't a Deep Linking Response message.")
+        
+        # Check if supported contentitems were returned
+        content_items = deep_link_response.get(
+            'https://purl.imsglobal.org/spec/lti-dl/claim/content_items',
+            # If not found, return empty list
+            [],
+        )
+        if any(
+            item['type'] not in LTI_DEEP_LINKING_ACCEPTED_TYPES
+            for item in content_items
+        ):
+            raise LtiDeepLinkingResponseException("Content item type is not supported")
+
+        # Return contentitems
+        return content_items

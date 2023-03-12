@@ -3,7 +3,7 @@ from typing import Any, Dict
 from abc import ABC, abstractmethod
 
 from .constants import LTI_BASE_MESSAGE
-
+from .deep_linking import LtiDeepLinking
 from . import exceptions
 
 
@@ -15,6 +15,7 @@ class MessageLaunchAbstract(ABC):
     def __init__(self, request, platform_config) -> None:
         self._request = request
         self._platform_config = platform_config
+        self._launch_url = None
         
         # IMS LTI Claim data
         self.lti_claim_user_data = None
@@ -186,6 +187,17 @@ class MessageLaunchAbstract(ABC):
         self.lti_claim_custom_parameters = {
             "https://purl.imsglobal.org/spec/lti/claim/custom": custom_parameters
         }
+    
+    def set_launch_url(self, launch_url):
+        self._launch_url = launch_url
+        
+        return self
+    
+    def get_launch_url(self):
+        if not self._launch_url:
+            self._launch_url = self._registration.get_launch_url()
+            
+        return self._launch_url
 
     def get_launch_message(self, include_extra_claims=True) -> Dict[str, Any]:
         launch_message = LTI_BASE_MESSAGE.copy()
@@ -206,7 +218,7 @@ class MessageLaunchAbstract(ABC):
             # Target Link URI: actual endpoint for the LTI resource to display
             # MUST be the same value as the target_link_uri passed by the platform in the OIDC login request
             # http://www.imsglobal.org/spec/lti/v1p3/#target-link-uri
-            "https://purl.imsglobal.org/spec/lti/claim/target_link_uri": self._registration.get_launch_url(),
+            "https://purl.imsglobal.org/spec/lti/claim/target_link_uri": self.get_launch_url(),
         })
 
         if include_extra_claims:
@@ -235,9 +247,6 @@ class MessageLaunchAbstract(ABC):
 
         :param response: the preflight response to be validated
         """
-        
-        self._registration = self._platform_config.get_registration()
-        
         try:
             assert preflight_response.get("nonce")
             assert preflight_response.get("state")
@@ -248,11 +257,6 @@ class MessageLaunchAbstract(ABC):
 
     def get_launch_data(self):
         preflight_response = self.get_preflight_response()
-        
-        # validate preflight request response from tool
-        self.validate_preflight_response(preflight_response)
-        
-        self.prepare_launch(preflight_response)
 
         # get launch message
         launch_message = self.get_launch_message()
@@ -274,10 +278,8 @@ class MessageLaunchAbstract(ABC):
         
         assert self._registration is not None # type: Registration
         # sign launch message with private key
-        private_key = self._registration.get_platform_private_key()
-        headers = {'kid': self._registration.get_kid()}
-        id_token = self._registration.encode_and_sign(launch_message, private_key, headers)
-        
+        id_token = self._registration.platform_encode_and_sign(launch_message)
+
         return {
             "state": state,
             "id_token": id_token
@@ -290,6 +292,16 @@ class MessageLaunchAbstract(ABC):
     def lti_launch(self, **kwargs):
         # This should render a form, and then submit it to the tool's launch URL, as
         # described in http://www.imsglobal.org/spec/lti/v1p3/#lti-message-general-details
+        
+        self._registration = self._platform_config.get_registration()
+        
+        preflight_response = self.get_preflight_response()
+        
+        # validate preflight request response from tool
+        self.validate_preflight_response(preflight_response)
+        
+        self.prepare_launch(preflight_response)
+        
         launch_data = self.generate_launch_request()
         return self.render_launch_form(launch_data, **kwargs)
 
@@ -300,9 +312,16 @@ class LTIAdvantageMessageLaunchAbstract(MessageLaunchAbstract):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+    
+    def set_dl(self, deep_link_return_url):
+        self._dl = LtiDeepLinking(deep_link_return_url)
+        
+        return self
 
     def generate_launch_request(self):
         if self._dl:
+            self.set_launch_url(self._registration.get_deeplink_launch_url())
+
             launch_message, state = self.get_launch_data()
             # Update message type to LtiDeepLinkingRequest,
             # replacing the normal launch request.
@@ -312,10 +331,10 @@ class LTIAdvantageMessageLaunchAbstract(MessageLaunchAbstract):
             
             
             launch_message.update(self._dl.get_lti_deep_linking_launch_claim())
-            
+
             return {
                 "state": state,
-                "id_token": self._registration.encode_and_sign(launch_message)
+                "id_token": self._registration.platform_encode_and_sign(launch_message)
             }
     
         return super().generate_launch_request()

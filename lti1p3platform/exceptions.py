@@ -17,3 +17,6 @@ class InvalidKeySetUrl(Exception):
 
 class LtiException(Exception):
     pass
+
+class LtiDeepLinkingResponseException(Exception):
+    pass
