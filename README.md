@@ -95,7 +95,7 @@ class LTI1p3MessageLaunch(MessageLaunchAbstract):
         """
         pass
     
-    def prepare_launch(preflight_response):
+    def prepare_launch(self, preflight_response, **kwargs):
         """
         You could do some other checks and get some contexts from `lti_message_hint` you've set in previous request
         Also you could call these methods to prepare your own jwt payload:

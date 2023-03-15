@@ -26,6 +26,8 @@ class MessageLaunchAbstract(ABC):
 
         # Extra claims - used by LTI Advantage
         self.extra_claims = {}
+        
+        self.id_token_expiration = 5 * 60
 
     @abstractmethod
     def get_preflight_response(self) -> dict:
@@ -193,6 +195,11 @@ class MessageLaunchAbstract(ABC):
         
         return self
     
+    def set_id_token_expiration(self, id_token_expiration):
+        self.id_token_expiration = id_token_expiration
+        
+        return self
+    
     def get_launch_url(self):
         if not self._launch_url:
             self._launch_url = self._registration.get_launch_url()
@@ -278,7 +285,7 @@ class MessageLaunchAbstract(ABC):
         
         assert self._registration is not None # type: Registration
         # sign launch message with private key
-        id_token = self._registration.platform_encode_and_sign(launch_message)
+        id_token = self._registration.platform_encode_and_sign(launch_message, expiration=self.id_token_expiration)
 
         return {
             "state": state,
@@ -334,7 +341,7 @@ class LTIAdvantageMessageLaunchAbstract(MessageLaunchAbstract):
 
             return {
                 "state": state,
-                "id_token": self._registration.platform_encode_and_sign(launch_message)
+                "id_token": self._registration.platform_encode_and_sign(launch_message, expiration=self.id_token_expiration)
             }
     
         return super().generate_launch_request()

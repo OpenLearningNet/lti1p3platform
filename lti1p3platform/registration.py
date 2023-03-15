@@ -136,11 +136,12 @@ class Registration:
     def decode_and_verify(encoded_jwt, public_key) -> t.Mapping[str, t.Any]:
         return jwt.decode(encoded_jwt, public_key, algorithms=['RS256'])
     
-    def platform_encode_and_sign(self, payload) -> str:
+    def platform_encode_and_sign(self, payload, expiration=None) -> str:
         headers = None
         kid = self.get_kid()
         
         if kid:
             headers = {'kid': kid}
 
-        return Registration.encode_and_sign(payload, self.get_platform_private_key(), headers)
+        return Registration.encode_and_sign(payload, self.get_platform_private_key(), headers, expiration=expiration)
+    
