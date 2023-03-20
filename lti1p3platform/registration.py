@@ -7,6 +7,8 @@ import time
 import jwt
 import json
 
+from .jwt_helper import jwt_encode
+
 class Registration:
     _iss = None
     _launch_url = None
@@ -128,8 +130,8 @@ class Registration:
                 "exp": int(time.time()) + expiration
             })
             
-        encoded_jwt = jwt.encode(payload, private_key, algorithm='RS256', headers=headers)
-
+        encoded_jwt = jwt_encode(payload, private_key, algorithm='RS256', headers=headers)
+        
         return encoded_jwt
 
     @staticmethod

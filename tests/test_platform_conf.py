@@ -1,8 +1,9 @@
-import jwt
 import time
 import uuid
 
 from lti1p3platform.registration import Registration
+from lti1p3platform.jwt_helper import jwt_encode
+
 from .platform_config import TestPlatform, TOOL_PRIVATE_KEY_PEM, PLATFORM_CONFIG
 
 def test_get_jwks():
@@ -41,7 +42,7 @@ def test_get_access_tokens():
         "jti": "lti-service-token-" + str(uuid.uuid4()),
     }
     jwk = Registration.get_jwk(TOOL_PRIVATE_KEY_PEM)
-    encoded_jwt = jwt.encode(jwt_claims, TOOL_PRIVATE_KEY_PEM, algorithm='RS256', headers={"kid": jwk.get('kid')})
+    encoded_jwt = jwt_encode(jwt_claims, TOOL_PRIVATE_KEY_PEM, algorithm='RS256', headers={"kid": jwk.get('kid')})
 
     scopes = ['https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly']
     token_request_data = {
