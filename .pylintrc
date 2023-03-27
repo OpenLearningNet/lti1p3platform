@@ -1,0 +1,13 @@
+[MASTER]
+disable=
+    C0114, # missing-module-docstring
+    C0115, # missing-class-docstring
+    C0116, # missing-function-docstring
+    W0511, # fixme
+
+extension-pkg-whitelist=pydantic
+ignore=framework
+
+[TYPECHECK]
+# alembic.context is dynamic 
+ignored-modules=alembic.context

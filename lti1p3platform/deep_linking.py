@@ -1,9 +1,12 @@
 """
 LTI Deep Linking service implementation
 """
+import typing as t
 from .constants import LTI_DEEP_LINKING_ACCEPTED_TYPES
 from .exceptions import LtiDeepLinkingContentTypeNotSupported
 
+
+# pylint: disable=too-few-public-methods
 class LtiDeepLinking:
     """
     LTI Advantage - Deep Linking Service
@@ -11,10 +14,11 @@ class LtiDeepLinking:
     Reference:
     http://www.imsglobal.org/spec/lti-dl/v2p0#file
     """
+
     def __init__(
         self,
-        deep_linking_return_url,
-    ):
+        deep_linking_return_url: str,
+    ) -> None:
         """
         Class initialization.
         """
@@ -22,11 +26,11 @@ class LtiDeepLinking:
 
     def get_lti_deep_linking_launch_claim(
         self,
-        title="",
-        description="",
-        accept_types=None,
-        extra_data=None,
-    ):
+        title: str = "",
+        description: str = "",
+        accept_types: t.Optional[t.Set[str]] = None,
+        extra_data: t.Optional[t.Dict[str, t.Any]] = None,
+    ) -> t.Dict[str, t.Any]:
         """
         Returns LTI Deep Linking Claim to be injected in the LTI launch message.
         """
@@ -44,11 +48,7 @@ class LtiDeepLinking:
         # Consctruct Deep Linking Claim
         deep_linking_claim = {
             "accept_types": accept_types_claim,
-            "accept_presentation_document_targets": [
-                "iframe",
-                "window",
-                "embed"
-            ],
+            "accept_presentation_document_targets": ["iframe", "window", "embed"],
             # Accept multiple items on from Deep Linking responses.
             "accept_multiple": True,
             # Automatically saves Content Items without asking to user
@@ -63,9 +63,11 @@ class LtiDeepLinking:
         # It's opaque to the tool, but WILL be sent back in the
         # deep link response.
         if extra_data:
-            deep_linking_claim.update({
-                "data": extra_data,
-            })
+            deep_linking_claim.update(
+                {
+                    "data": extra_data,
+                }
+            )
 
         return {
             "https://purl.imsglobal.org/spec/lti-dl/claim/deep_linking_settings": deep_linking_claim
