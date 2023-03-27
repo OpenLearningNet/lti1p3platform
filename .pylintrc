@@ -7,7 +7,3 @@ disable=
 
 extension-pkg-whitelist=pydantic
 ignore=framework
-
-[TYPECHECK]
-# alembic.context is dynamic 
-ignored-modules=alembic.context
