@@ -1,6 +1,6 @@
-import typing 
+import typing
 
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse, parse_qsl, urlunparse
 from abc import ABC, abstractmethod
 
 from .constants import LTI_BASE_MESSAGE
@@ -9,45 +9,46 @@ from . import exceptions
 if typing.TYPE_CHECKING:
     from .registration import Registration
 
+
 class OIDCLoginAbstract(ABC):
     _request = None
     _platform_config = None
     _registration = None  # type: Registration
     _launch_url = None
-    
+
     def __init__(self, request, platform_config) -> None:
         self._request = request
         self._platform_config = platform_config
         self._registration = self._platform_config.get_registration()
-    
+
     @abstractmethod
     def set_lti_message_hint(self, **kwargs):
         raise NotImplementedError
-    
+
     @abstractmethod
     def get_lti_message_hint(self):
         raise NotImplementedError
 
     def set_launch_url(self, launch_url):
         self._launch_url = launch_url
-        
+
         return self
-    
+
     def set_deeplinking_launch_url(self):
         self.set_launch_url(self._registration.get_deeplink_launch_url())
-        
+
         return self
 
     def get_launch_url(self):
         if not self._launch_url:
             self.set_launch_url(self._registration.get_launch_url())
-        
+
         return self._launch_url
 
     def prepare_preflight_url(self, user_id):
         """
         Prepare OIDC preflight url
-        
+
         - iss: required, the issuer identifier identifying the learning platform
         - target_link_uri: required, the actual end point that should be executed at the end of the OIDC authentication flow
         - lti_message_hint: required, this is an LTI specific parameter identifying the actual message to be executed. For example it may be the resource link id when the message is a resource link request.
@@ -70,16 +71,27 @@ class OIDCLoginAbstract(ABC):
             "login_hint": user_id,
             "lti_message_hint": self.get_lti_message_hint(),
         }
-        
+
         client_id = self._registration.get_client_id()
         if client_id:
-            params['client_id'] = client_id
-        
+            params["client_id"] = client_id
+
         deployment_id = self._registration.get_deployment_id()
         if deployment_id:
-            params['lti_deployment_id'] = deployment_id
-        
-        return f"{self._registration.get_oidc_login_url()}?{urlencode(params)}"
+            params["lti_deployment_id"] = deployment_id
+
+        # Encode the new query parameters
+        encoded_params = urlencode(params)
+
+        oidc_login_url = self._registration.get_oidc_login_url()
+        parsed_url = urlparse(oidc_login_url)
+
+        query_dict = dict(parse_qsl(parsed_url.query))
+        if parsed_url.query and not query_dict:
+            # handle some weird cases when query is not empty but parse_qsl returns empty dict
+            return f"{oidc_login_url}&{encoded_params}"
+
+        return f"{oidc_login_url}?{encoded_params}"
 
     @abstractmethod
     def get_redirect(self, url):
@@ -91,6 +103,6 @@ class OIDCLoginAbstract(ABC):
         """
         # prepare preflight url
         preflight_url = self.prepare_preflight_url(user_id)
-        
+
         # redirect to preflight url
         return self.get_redirect(preflight_url)
