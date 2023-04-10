@@ -103,8 +103,12 @@ class OIDCLoginAbstract(ABC):
 
         oidc_login_url = self._registration.get_oidc_login_url()
         parsed_url = urlparse(oidc_login_url)
+        query = parsed_url.query
 
-        query_dict = dict(parse_qsl(parsed_url.query))
+        if isinstance(query, bytes):
+            query = query.decode("utf-8")
+
+        query_dict = dict(parse_qsl(query))
         if parsed_url.query and not query_dict:
             # handle some weird cases when query is not empty but parse_qsl returns empty dict
             return f"{oidc_login_url}&{encoded_params}"
