@@ -83,16 +83,19 @@ class TestPlatform(LTI1P3PlatformConfAbstract):
     """
     Test platform configuration
     """
+
     def init_platform_config(self, **kwargs) -> None:
-        self._registration = Registration() \
-            .set_iss(PLATFORM_CONFIG["iss"]) \
-            .set_client_id(PLATFORM_CONFIG["client_id"]) \
-            .set_deployment_id(PLATFORM_CONFIG["deployment_id"]) \
-            .set_oidc_login_url(PLATFORM_CONFIG["oidc_login_url"]) \
-            .set_launch_url(PLATFORM_CONFIG["launch_url"]) \
-            .set_platform_public_key(RSA_PUBLIC_KEY_PEM) \
-            .set_platform_private_key(RSA_PRIVATE_KEY_PEM) \
+        self._registration = (
+            Registration()
+            .set_iss(PLATFORM_CONFIG["iss"])
+            .set_client_id(PLATFORM_CONFIG["client_id"])
+            .set_deployment_id(PLATFORM_CONFIG["deployment_id"])
+            .set_oidc_login_url(PLATFORM_CONFIG["oidc_login_url"])
+            .set_launch_url(PLATFORM_CONFIG["launch_url"])
+            .set_platform_public_key(RSA_PUBLIC_KEY_PEM)
+            .set_platform_private_key(RSA_PRIVATE_KEY_PEM)
             .set_tool_key_set_url(PLATFORM_CONFIG["key_set_url"])
+        )
 
     def get_registration_by_params(self, iss, client_id, **kwargs):
         return self._registration
