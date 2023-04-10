@@ -60,7 +60,10 @@ class LTI1P3PlatformConfAbstract(ABC):
 
     @abstractmethod
     def get_registration_by_params(
-        self, iss: str, client_id: str, **kwargs: t.Any
+        self,
+        iss: t.Optional[str] = None,
+        client_id: t.Optional[str] = None,
+        **kwargs: t.Any,
     ) -> Registration:
         raise NotImplementedError()
 
@@ -305,3 +308,24 @@ class LTI1P3PlatformConfAbstract(ABC):
 
         # Return contentitems
         return content_items  # type: ignore
+
+    def validate_token(
+        self, token: str, allowed_scopes: t.Optional[t.List[str]] = None
+    ) -> t.Dict[str, t.Any]:
+        """
+        Validate token and return decoded token.
+
+        Parameters:
+            token: Token to validate
+
+        Returns:
+            Decoded token
+        """
+        token_contents = self.validate_and_decode(token)
+
+        token_scopes = token_contents.get("scopes", "").split(" ")
+
+        if allowed_scopes:
+            return any(scope in token_scopes for scope in allowed_scopes)
+
+        return True
