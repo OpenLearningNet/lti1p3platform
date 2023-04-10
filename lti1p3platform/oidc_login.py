@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import typing as t
 
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse, parse_qsl
 from abc import ABC, abstractmethod
 
 from . import exceptions
@@ -98,7 +98,18 @@ class OIDCLoginAbstract(ABC):
         if deployment_id:
             params["lti_deployment_id"] = deployment_id
 
-        return f"{self._registration.get_oidc_login_url()}?{urlencode(params)}"
+        # Encode the new query parameters
+        encoded_params = urlencode(params)
+
+        oidc_login_url = self._registration.get_oidc_login_url()
+        parsed_url = urlparse(oidc_login_url)
+
+        query_dict = dict(parse_qsl(parsed_url.query))
+        if parsed_url.query and not query_dict:
+            # handle some weird cases when query is not empty but parse_qsl returns empty dict
+            return f"{oidc_login_url}&{encoded_params}"
+
+        return f"{oidc_login_url}?{encoded_params}"
 
     @abstractmethod
     def get_redirect(self, url: str) -> t.Any:
