@@ -43,6 +43,7 @@ fastapi = "^0.95.0"
 Jinja2 = "^3.1.2"
 django-stubs = "^1.16.0"
 black = "^23.1.0"
+types-setuptools = "^67.6.0"
 
 [build-system]
 requires = ["setuptools>=61.0"]

@@ -657,6 +657,14 @@ python-versions = "*"
 types-urllib3 = "<1.27"
 
 [[package]]
+name = "types-setuptools"
+version = "67.6.0.7"
+description = "Typing stubs for setuptools"
+category = "dev"
+optional = false
+python-versions = "*"
+
+[[package]]
 name = "types-urllib3"
 version = "1.26.25.8"
 description = "Typing stubs for urllib3"
@@ -708,7 +716,7 @@ testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "flake8 (<5)", "pytest-co
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.7.2"
-content-hash = "9169f3a183ca7328599417fc550f9ea8077cee3b03e366ebe51af1f14542c992"
+content-hash = "90b89ba2fc71de747b29cfaa29ca7b7b6d54330b1bca92c2161b8fe222a6b47b"
 
 [metadata.files]
 anyio = [
@@ -1185,6 +1193,10 @@ types-pyyaml = [
 types-requests = [
     {file = "types-requests-2.28.11.16.tar.gz", hash = "sha256:9d4002056df7ebc4ec1f28fd701fba82c5c22549c4477116cb2656aa30ace6db"},
     {file = "types_requests-2.28.11.16-py3-none-any.whl", hash = "sha256:a86921028335fdcc3aaf676c9d3463f867db6af2303fc65aa309b13ae1e6dd53"},
+]
+types-setuptools = [
+    {file = "types-setuptools-67.6.0.7.tar.gz", hash = "sha256:f46b11773b1aeddbd2ef32fd6a6091ef33aa9b32daa124f6ce63f616de59ae51"},
+    {file = "types_setuptools-67.6.0.7-py3-none-any.whl", hash = "sha256:ea2873dc8dd9e8421929dc50617ac7c2054c9a873942c5b5b606e2effef5db12"},
 ]
 types-urllib3 = [
     {file = "types-urllib3-1.26.25.8.tar.gz", hash = "sha256:ecf43c42d8ee439d732a1110b4901e9017a79a38daca26f08e42c8460069392c"},
