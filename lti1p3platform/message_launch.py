@@ -47,7 +47,7 @@ class MessageLaunchAbstract(ABC):
 
     def get_preflight_response(self) -> t.Dict[str, t.Any]:
         # pylint: disable=protected-access
-        return self._request.get_data or self._request.post_data
+        return self._request.get_data or self._request.form_data
 
     def prepare_launch(self, preflight_response: t.Dict[str, t.Any]) -> None:
         pass
@@ -377,7 +377,7 @@ class LTIAdvantageMessageLaunchAbstract(MessageLaunchAbstract):
         return self
 
     # pylint: disable=too-many-arguments
-    def set_args(
+    def set_ags(
         self,
         lineitems_url: str,
         lineitem_url: t.Optional[str] = None,

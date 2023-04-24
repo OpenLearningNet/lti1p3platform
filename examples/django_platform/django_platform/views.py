@@ -2,13 +2,19 @@ import os
 import json
 import typing as t
 from uuid import uuid4
+from functools import wraps
 from django.conf import settings
 from django.http import JsonResponse
+from django.urls import reverse
+from django.views.decorators.csrf import csrf_exempt
 
 from lti1p3platform.framework.django.message_launch import DjangoLTI1P3MessageLaunch
 from lti1p3platform.framework.django.oidc_login import DjangoAPIOIDCLogin
+from lti1p3platform.framework.django.request import DjangoRequest
 from lti1p3platform.ltiplatform import LTI1P3PlatformConfAbstract
 from lti1p3platform.registration import Registration
+
+from .helpers import get_url
 
 USER_ID = "user_id"
 
@@ -74,7 +80,7 @@ def get_registered_platform() -> LTIPlatformConf:
 
 def preflight_lti_1p3_launch(request):
     platform = get_registered_platform()
-    oidc_login = OIDCLogin(request, platform)
+    oidc_login = OIDCLogin(DjangoRequest(request), platform)
     oidc_login.set_lti_message_hint(str(uuid4()))
 
     return oidc_login.initiate_login(USER_ID)
@@ -82,7 +88,8 @@ def preflight_lti_1p3_launch(request):
 
 def authorization(request):
     platform = get_registered_platform()
-    launch_req = DjangoLTI1P3MessageLaunch(request, platform)
+    launch_req = DjangoLTI1P3MessageLaunch(DjangoRequest(request), platform)
+    launch_req.set_ags(get_url(reverse("ags-lineitems")), None, True, True, True)
     launch_req.set_user_data(
         USER_ID,
         ["http://purl.imsglobal.org/vocab/lis/v2/system/person#User"],
@@ -96,6 +103,7 @@ def authorization(request):
     return launch_req.lti_launch()
 
 
+@csrf_exempt
 def access_token(request):
     platform = get_registered_platform()
     token_data = request.POST.dict()

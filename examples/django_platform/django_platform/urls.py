@@ -14,7 +14,7 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 
-from django.urls import path
+from django.urls import path, include
 
 from .views import preflight_lti_1p3_launch, authorization, access_token, get_jwks
 
@@ -23,4 +23,5 @@ urlpatterns = [
     path("authorization", authorization, name="platform-authorization"),
     path("access_token", access_token, name="platform-access-token"),
     path("jwks", get_jwks, name="platform-jwk"),
+    path("lineitems/", include("django_platform.ags.urls")),
 ]

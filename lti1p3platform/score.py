@@ -19,16 +19,43 @@ class GradeProgress(Enum):
     FULLYGRADED = "FullyGraded"
 
 
+class UpdateScoreStatus(Enum):
+    SUCCESS = "success"  # Successful operation, score update has been received.
+    CREATED = "created"  # Successful operation, score update has been received. A new result was created.
+    PENDING = "pending"  # The server has accepted the request, but the processing is not complete.
+    NOTAPPLIED = "notapplied"  # The server has accepted the request, but the score was not applied.
+    OLD_TIMESTAMP = "oldtimestamp"  # The Score has an earlier timestamp than the last one successfully processed
+
+
+UPDATE_SCORE_STATUSCODE = {
+    UpdateScoreStatus.CREATED: 201,
+    UpdateScoreStatus.SUCCESS: 200,
+    UpdateScoreStatus.PENDING: 202,
+    UpdateScoreStatus.NOTAPPLIED: 403,
+    UpdateScoreStatus.OLD_TIMESTAMP: 409,
+}
+# https://www.imsglobal.org/spec/lti-ags/v2p0/#score-service-media-type-and-schema
+
+TSubmission = te.TypedDict(
+    "TSubmission",
+    {
+        "startedAt": datetime,
+        "submittedAt": datetime,
+    },
+    total=False,
+)
+
 TScore = te.TypedDict(
     "TScore",
     {
-        "userId": int,
+        "userId": int,  # LTI user ID identifying the recipient of the Result
         "scoreGiven": float,
         "scoreMaximum": float,
         "comment": str,
         "timestamp": datetime,
         "activityProgress": ActivityProgress,
         "gradingProgress": GradeProgress,
+        "submission": TSubmission,
     },
     total=False,
 )

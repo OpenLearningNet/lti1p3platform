@@ -6,11 +6,12 @@ TRequest = te.TypedDict(
     "TRequest",
     {
         "method": str,
-        "post_data": t.Dict[str, t.Any],
+        "form_data": t.Dict[str, t.Any],
         "get_data": t.Dict[str, t.Any],
         "headers": t.Dict[str, t.Any],
         "content_type": str,
         "path": str,
+        "json": t.Any,
     },
     total=False,
 )
@@ -31,8 +32,8 @@ class Request(ABC):
         return self.request["method"]
 
     @property
-    def post_data(self) -> t.Dict[str, t.Any]:
-        return self.request["post_data"]
+    def form_data(self) -> t.Dict[str, t.Any]:
+        return self.request["form_data"]
 
     @property
     def get_data(self) -> t.Dict[str, t.Any]:
@@ -49,3 +50,7 @@ class Request(ABC):
     @property
     def path(self) -> str:
         return self.request["path"]
+
+    @property
+    def json(self) -> t.Any:
+        return self.request["json"]

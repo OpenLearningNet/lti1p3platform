@@ -6,7 +6,7 @@ class FastApiRequest(Request):
     def build_metadata(self, request: Request) -> TRequest:
         return {
             "method": request.method,
-            "post_data": request.form,
+            "form_data": request.form,
             "get_data": request.query_params,
             "headers": request.headers,
             "content_type": request.headers.get("content-type"),
