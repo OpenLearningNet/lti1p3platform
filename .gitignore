@@ -5,4 +5,7 @@ dist
 .python-version
 .vscode
 
+*.sqlite3
+
+__pycache__
 *.pyc
