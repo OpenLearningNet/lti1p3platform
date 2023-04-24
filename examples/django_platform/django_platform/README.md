@@ -4,20 +4,17 @@
 
 Running server:
 
-.. code-block:: shell
-
     $ virtualenv venv
     $ source venv/bin/activate
     $ poetry install
     $ export PYTHONPATH="$PWD:$PYTHONPATH"
     $ cd examples/django_platform
+    $ python manage.py migration # running at the first time to create tables
     $ python manage.py runserver 127.0.0.1:9002
 
-Tool running server[https://github.com/dmitry-viskov/pylti1.3-django-example], you could follow instructions to start the tool server.
+Tool running [server](https://github.com/dmitry-viskov/pylti1.3-django-example), you could follow instructions to start the tool server.
 
-You also need to add platform config to the tool config file:
-
-.. code-block:: javascript
+You also need to add platform config to the tool config file [game.json](https://github.com/dmitry-viskov/pylti1.3-django-example/blob/master/configs/game.json):
 
     {
         "https://example.com": [{
@@ -36,8 +33,8 @@ You also need to add platform config to the tool config file:
 
 Now there is game example tool you can launch into on the port 9001:
 
-.. code-block:: shell
-
     Initial Login URL: http://127.0.0.1:9002/login
     LTI Launch URL: http://127.0.0.1:9002/launch
     JWKS URL: http://127.0.0.1:9002/jwks
+
+Now you could go to `http://127.0.0.1:9002/login` to start to play.
