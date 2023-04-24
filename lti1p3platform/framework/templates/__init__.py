@@ -1,3 +1,5 @@
+import pkg_resources
+
 from jinja2 import Environment, PackageLoader
 
 # Create a Jinja2 environment and specify the template folder
