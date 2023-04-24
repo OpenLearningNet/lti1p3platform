@@ -1,7 +1,5 @@
-import json
 import typing as t
 import typing_extensions as te
-from .exceptions import LtiException
 
 
 TSubmissionReview = te.TypedDict(

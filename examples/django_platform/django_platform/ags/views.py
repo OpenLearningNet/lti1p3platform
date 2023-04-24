@@ -1,4 +1,3 @@
-from django.http import JsonResponse
 from django.urls import reverse
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
@@ -10,9 +9,9 @@ from .service_connector import AGS
 from ..views import get_registered_platform
 from ..helpers import get_url
 
-allow_creating_lineitems = True
-results_service_enabled = True
-scores_service_enabled = True
+ALLOW_CREATING_LINEITEMS = True
+RESULTS_SERVICE_ENABLED = True
+SCORES_SERVICE_ENABLED = True
 
 
 def _get_service_connector(request):
@@ -23,9 +22,9 @@ def _get_service_connector(request):
         django_request,
         platform_config,
         get_url(reverse("ags-lineitems")),
-        allow_creating_lineitems,
-        results_service_enabled,
-        scores_service_enabled,
+        ALLOW_CREATING_LINEITEMS,
+        RESULTS_SERVICE_ENABLED,
+        SCORES_SERVICE_ENABLED,
     )
 
     return service_connector
@@ -34,8 +33,9 @@ def _get_service_connector(request):
 class LineItemView(View):
     @method_decorator(csrf_exempt)
     def dispatch(self, request, *args, **kwargs):
-        return super(LineItemView, self).dispatch(request, *args, **kwargs)
+        return super().dispatch(request, *args, **kwargs)
 
+    # pylint: disable=unused-argument
     def get(self, request, *args, **kwargs):
         service_connector = _get_service_connector(request)
         resp = service_connector.handle_resp(
@@ -44,6 +44,7 @@ class LineItemView(View):
 
         return wrap_json_resp(resp)
 
+    # pylint: disable=unused-argument
     def put(self, request, *args, **kwargs):
         service_connector = _get_service_connector(request)
         resp = service_connector.handle_resp(
@@ -56,8 +57,9 @@ class LineItemView(View):
 class LineItemsView(View):
     @method_decorator(csrf_exempt)
     def dispatch(self, request, *args, **kwargs):
-        return super(LineItemsView, self).dispatch(request, *args, **kwargs)
+        return super().dispatch(request, *args, **kwargs)
 
+    # pylint: disable=unused-argument
     def get(self, request, *args, **kwargs):
         service_connector = _get_service_connector(request)
 
@@ -65,6 +67,7 @@ class LineItemsView(View):
 
         return wrap_json_resp(resp)
 
+    # pylint: disable=unused-argument
     def post(self, request, *args, **kwargs):
         service_connector = _get_service_connector(request)
 

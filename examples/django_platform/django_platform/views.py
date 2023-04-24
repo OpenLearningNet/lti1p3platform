@@ -1,8 +1,9 @@
+# pylint: disable=arguments-differ
 import os
 import json
 import typing as t
 from uuid import uuid4
-from functools import wraps
+
 from django.conf import settings
 from django.http import JsonResponse
 from django.urls import reverse
@@ -39,9 +40,7 @@ class LTIPlatformConf(LTI1P3PlatformConfAbstract):
 
         self._registration = registration
 
-    def get_registration_by_params(
-        self, iss: str, client_id: str, **kwargs: t.Any
-    ) -> Registration:
+    def get_registration_by_params(self, **kwargs: t.Any) -> Registration:
         return self._registration
 
 
@@ -68,12 +67,12 @@ def get_registered_platform() -> LTIPlatformConf:
         public_key_file = configs_dir + "/" + config.get("public_key_file")
 
     if private_key_file:
-        with open(private_key_file, encoding="utf-8") as pk:
-            config["private_key"] = pk.read()
+        with open(private_key_file, encoding="utf-8") as key_file:
+            config["private_key"] = key_file.read()
 
     if public_key_file:
-        with open(public_key_file, encoding="utf-8") as pk:
-            config["public_key"] = pk.read()
+        with open(public_key_file, encoding="utf-8") as key_file:
+            config["public_key"] = key_file.read()
 
     return LTIPlatformConf(platform_settings=config)
 
@@ -81,7 +80,7 @@ def get_registered_platform() -> LTIPlatformConf:
 def preflight_lti_1p3_launch(request):
     platform = get_registered_platform()
     oidc_login = OIDCLogin(DjangoRequest(request), platform)
-    oidc_login.set_lti_message_hint(str(uuid4()))
+    oidc_login.set_lti_message_hint(lti_message_hint=str(uuid4()))
 
     return oidc_login.initiate_login(USER_ID)
 
@@ -111,6 +110,7 @@ def access_token(request):
     return JsonResponse(platform.get_access_token(token_data))
 
 
+# pylint: disable=unused-argument
 def get_jwks(request):
     platform = get_registered_platform()
 

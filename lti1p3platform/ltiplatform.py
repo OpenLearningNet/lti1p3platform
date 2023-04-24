@@ -62,8 +62,6 @@ class LTI1P3PlatformConfAbstract(ABC):
     @abstractmethod
     def get_registration_by_params(
         self,
-        iss: t.Optional[str] = None,
-        client_id: t.Optional[str] = None,
         **kwargs: t.Any,
     ) -> Registration:
         raise NotImplementedError()
@@ -315,7 +313,7 @@ class LTI1P3PlatformConfAbstract(ABC):
         token: str,
         allowed_scopes: t.Optional[t.List[str]] = None,
         audience: t.Optional[str] = None,
-    ) -> t.Dict[str, t.Any]:
+    ) -> bool:
         """
         Validate token and return decoded token.
 
@@ -325,9 +323,12 @@ class LTI1P3PlatformConfAbstract(ABC):
         Returns:
             Decoded token
         """
-        token_contents = Registration.decode_and_verify(
-            token, self._registration.get_platform_public_key()
-        )
+        assert self._registration is not None, "Registration not yet set"
+
+        public_key = self._registration.get_platform_public_key()
+        assert public_key is not None
+
+        token_contents = Registration.decode_and_verify(token, public_key)
 
         if token_contents.get("iss") != self._registration.get_iss():
             raise LtiException("Invalid issuer")

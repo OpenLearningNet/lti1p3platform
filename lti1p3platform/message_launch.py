@@ -41,11 +41,12 @@ class MessageLaunchAbstract(ABC):
         self.lti_claim_custom_parameters: t.Optional[t.Dict[str, t.Any]] = None
 
         # Extra claims - used by LTI Advantage
-        self.extra_claims = {}
+        self.extra_claims: t.Dict[str, t.Any] = {}
 
         self.id_token_expiration = 5 * 60
 
     def get_preflight_response(self) -> t.Dict[str, t.Any]:
+        assert self._request is not None
         # pylint: disable=protected-access
         return self._request.get_data or self._request.form_data
 

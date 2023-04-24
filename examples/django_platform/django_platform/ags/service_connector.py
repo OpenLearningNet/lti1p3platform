@@ -7,7 +7,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from lti1p3platform.service_connector import AssignmentsGradesService, TPage
 from lti1p3platform.lineitem import TLineItem
 from lti1p3platform.score import TScore, UpdateScoreStatus
-from lti1p3platform.exceptions import LineItemNotFoundException, LtiServiceException
+from lti1p3platform.exceptions import LineItemNotFoundException
 
 from .models import LineItem, Score
 from ..helpers import get_url
@@ -18,14 +18,15 @@ class AGS(AssignmentsGradesService):
         return {
             "id": get_url(reverse("ags-lineitem", args=[lineitem.id])),
             "label": lineitem.label,
-            "resourceId": lineitem.resourceId,
+            "resourceId": lineitem.resource_id,
             "tag": lineitem.tag,
-            "resourceLinkId": lineitem.resourceLinkId,
-            "scoreMaximum": lineitem.scoreMaximum,
-            "startDateTime": lineitem.startDateTime,
-            "endDateTime": lineitem.endDateTime,
+            "resourceLinkId": lineitem.resource_link_id,
+            "scoreMaximum": lineitem.score_maximum,
+            "startDateTime": lineitem.start_date_time,
+            "endDateTime": lineitem.end_date_time,
         }
 
+    # pylint: disable=too-many-arguments
     def find_lineitems(
         self,
         page: int = 1,
@@ -35,7 +36,7 @@ class AGS(AssignmentsGradesService):
         resource_id: t.Optional[str] = None,
         tag: t.Optional[str] = None,
     ) -> TPage:
-        line_items = LineItem.objects
+        line_items = LineItem.objects  # pylint: disable=no-member
         if line_item_id:
             line_items = line_items.filter(id=line_item_id)
 
@@ -62,7 +63,7 @@ class AGS(AssignmentsGradesService):
         }
 
     def find_lineitem_by_id(self, line_item_id: str) -> LineItem:
-        lineitem = LineItem.objects.get(id=line_item_id)
+        lineitem = LineItem.objects.get(id=line_item_id)  # pylint: disable=no-member
 
         if lineitem is None:
             raise LineItemNotFoundException
@@ -76,53 +77,41 @@ class AGS(AssignmentsGradesService):
 
     def create_lineitem(
         self,
-        startDateTime: t.Optional[str] = None,
-        endDateTime: t.Optional[str] = None,
-        scoreMaximum: t.Optional[float] = None,
-        label: t.Optional[str] = None,
-        tag: t.Optional[str] = None,
-        resourceLinkId: t.Optional[str] = None,
-        resourceId: t.Optional[str] = None,
+        creation_data: TLineItem,
     ) -> TLineItem:
         line_item = LineItem(
-            startDateTime=startDateTime,
-            endDateTime=endDateTime,
-            scoreMaximum=scoreMaximum,
-            label=label,
-            tag=tag,
-            resourceLinkId=resourceLinkId,
-            resourceId=resourceId,
+            start_date_time=creation_data.get("startDateTime"),
+            end_date_time=creation_data.get("endDateTime"),
+            score_maximum=creation_data.get("scoreMaximum"),
+            label=creation_data.get("label"),
+            tag=creation_data.get("tag"),
+            resource_link_id=creation_data.get("resourceLinkId"),
+            resource_id=creation_data.get("resourceId"),
         )
         line_item.save()
         return self.lineitem_serializer(line_item)
 
     def update_lineitem(
         self,
-        lineItemId: str,
-        startDateTime: t.Optional[str] = None,
-        endDateTime: t.Optional[str] = None,
-        scoreMaximum: t.Optional[float] = None,
-        label: t.Optional[str] = None,
-        tag: t.Optional[str] = None,
-        resourceLinkId: t.Optional[str] = None,
-        resourceId: t.Optional[str] = None,
+        update_data: TLineItem,
     ) -> TLineItem:
-        line_item = self.find_lineitem_by_id(lineItemId)
+        assert "lineItemId" in update_data
+        line_item = self.find_lineitem_by_id(update_data["lineItemId"])
 
-        if startDateTime:
-            line_item.startDateTime = parser.parse(startDateTime)
-        if endDateTime:
-            line_item.endDateTime = parser.parse(endDateTime)
-        if scoreMaximum:
-            line_item.scoreMaximum = scoreMaximum
-        if label:
-            line_item.label = label
-        if tag:
-            line_item.tag = tag
-        if resourceLinkId:
-            line_item.resourceLinkId = resourceLinkId
-        if resourceId:
-            line_item.resourceId = resourceId
+        if update_data.get("startDateTime"):
+            line_item.start_date_time = parser.parse(update_data.get("startDateTime"))
+        if update_data.get("endDateTime"):
+            line_item.end_date_time = parser.parse(update_data.get("endDateTime"))
+        if update_data.get("scoreMaximum"):
+            line_item.score_maximum = update_data.get("scoreMaximum")
+        if update_data.get("label"):
+            line_item.label = update_data.get("label")
+        if update_data.get("tag"):
+            line_item.tag = update_data.get("tag")
+        if update_data.get("resourceLinkId"):
+            line_item.resource_link_id = update_data.get("resourceLinkId")
+        if update_data.get("resourceId"):
+            line_item.resource_id = update_data.get("resourceId")
         line_item.save()
 
         return self.lineitem_serializer(line_item)
@@ -137,7 +126,9 @@ class AGS(AssignmentsGradesService):
     def update_score(self, line_item_id: str, score: TScore) -> UpdateScoreStatus:
         line_item = self.find_lineitem_by_id(line_item_id)
         try:
-            target_score = Score.objects.get(lineItem=line_item, userId=score["userId"])
+            target_score = Score.objects.get(  # pylint: disable=no-member
+                lineItem=line_item, userId=score["userId"]
+            )
         except ObjectDoesNotExist:
             target_score = None
 
@@ -153,40 +144,30 @@ class AGS(AssignmentsGradesService):
 
             target_score.timestamp = timestamp
 
-        if "scoreGiven" in score:
-            target_score.scoreGiven = score["scoreGiven"]
-
-        if "scoreMaximum" in score:
-            target_score.scoreMaximum = score["scoreMaximum"]
-
-        if "comment" in score:
-            target_score.comment = score["comment"]
-
-        if "activityProgress" in score:
-            target_score.activityProgress = score["activityProgress"]
-
-        if "gradingProgress" in score:
-            target_score.gradingProgress = score["gradingProgress"]
+        target_score.score_given = score["scoreGiven"]
+        target_score.score_maximum = score.get("scoreMaximum")
+        target_score.comment = score.get("comment")
+        target_score.activity_progress = score["activityProgress"]
+        target_score.grading_progress = score["gradingProgress"]
 
         if "submission" in score:
             submission = score["submission"]
             if "startedAt" in submission:
-                target_score.submissionStartedAt = submission["startedAt"]
+                target_score.submission_started_at = submission["startedAt"]
             if "endedAt" in submission:
-                target_score.submissionEndedAt = submission["endedAt"]
-
+                target_score.submission_ended_at = submission["endedAt"]
         target_score.save()
 
         if is_new:
             return UpdateScoreStatus.CREATED
-        else:
-            return UpdateScoreStatus.SUCCESS
+
+        return UpdateScoreStatus.SUCCESS
 
     def get_results(
         self, line_item_id: str, page: int, limit: int, user_id: t.Optional[str] = None
     ) -> TPage:
         line_item = self.find_lineitem_by_id(line_item_id)
-        scores = Score.objects.filter(lineItem=line_item)
+        scores = Score.objects.filter(lineItem=line_item)  # pylint: disable=no-member
 
         if user_id:
             scores = scores.filter(userId=user_id)

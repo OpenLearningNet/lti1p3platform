@@ -1,5 +1,5 @@
 from django.http import JsonResponse
-from lti1p3platform.service_connector import Response
+from lti1p3platform.response import Response
 
 
 def wrap_json_resp(resp: Response) -> JsonResponse:

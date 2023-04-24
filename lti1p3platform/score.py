@@ -20,11 +20,21 @@ class GradeProgress(Enum):
 
 
 class UpdateScoreStatus(Enum):
-    SUCCESS = "success"  # Successful operation, score update has been received.
-    CREATED = "created"  # Successful operation, score update has been received. A new result was created.
-    PENDING = "pending"  # The server has accepted the request, but the processing is not complete.
-    NOTAPPLIED = "notapplied"  # The server has accepted the request, but the score was not applied.
-    OLD_TIMESTAMP = "oldtimestamp"  # The Score has an earlier timestamp than the last one successfully processed
+    # Successful operation, score update has been received.
+    SUCCESS = "success"
+    # Successful operation, score update has been received.
+    # A new result was created.
+    CREATED = "created"
+    # The server has accepted the request, but the processing
+    # is not complete.
+    PENDING = "pending"
+    # The server has accepted the request, but the score was
+    # not applied.
+    NOTAPPLIED = "notapplied"
+
+    # The Score has an earlier timestamp than the last one
+    # successfully processed
+    OLD_TIMESTAMP = "oldtimestamp"
 
 
 UPDATE_SCORE_STATUSCODE = {
@@ -34,8 +44,8 @@ UPDATE_SCORE_STATUSCODE = {
     UpdateScoreStatus.NOTAPPLIED: 403,
     UpdateScoreStatus.OLD_TIMESTAMP: 409,
 }
-# https://www.imsglobal.org/spec/lti-ags/v2p0/#score-service-media-type-and-schema
 
+# https://www.imsglobal.org/spec/lti-ags/v2p0/#score-service-media-type-and-schema
 TSubmission = te.TypedDict(
     "TSubmission",
     {

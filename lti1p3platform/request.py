@@ -1,15 +1,14 @@
-from abc import ABC, abstractmethod
 import typing as t
 import typing_extensions as te
 
 TRequest = te.TypedDict(
     "TRequest",
     {
-        "method": str,
+        "method": t.Optional[str],
         "form_data": t.Dict[str, t.Any],
         "get_data": t.Dict[str, t.Any],
-        "headers": t.Dict[str, t.Any],
-        "content_type": str,
+        "headers": t.Mapping[str, t.Any],
+        "content_type": t.Optional[str],
         "path": str,
         "json": t.Any,
     },
@@ -17,18 +16,35 @@ TRequest = te.TypedDict(
 )
 
 
-class Request(ABC):
+# T_aobj = t.TypeVar("T_aobj", bound="aobject")
+
+
+# class aobject(object):
+#     async def __new__(cls: t.Type[T_aobj], *args: t.Any, **kwargs: t.Any) -> T_aobj:
+#         instance = super().__new__(cls)
+#         instance.__init__(*args, **kwargs)
+#         await instance.__ainit__()
+#         return instance
+
+#     @classmethod
+#     async def new(cls: t.Type[T_aobj], *args: t.Any, **kwargs: t.Any) -> T_aobj:
+#         instance = super().__new__(cls)
+#         instance.__init__(*args, **kwargs)
+#         await instance.__ainit__(*args, **kwargs)
+#         return instance
+
+#     def __init__(self, *args: t.Any, **kwargs: t.Any) -> None:
+#         pass
+
+#     async def __ainit__(self, *args: t.Any, **kwargs: t.Any) -> None:
+#         pass
+
+
+class RequestBase:
     request: TRequest
 
-    def __init__(self, request: t.Any):
-        self.request = self.build_metadata(request)
-
-    @abstractmethod
-    def build_metadata(self, request: t.Any) -> TRequest:
-        pass
-
     @property
-    def method(self) -> str:
+    def method(self) -> t.Optional[str]:
         return self.request["method"]
 
     @property
@@ -40,11 +56,11 @@ class Request(ABC):
         return self.request["get_data"]
 
     @property
-    def headers(self) -> t.Dict[str, t.Any]:
+    def headers(self) -> t.Mapping[str, t.Any]:
         return self.request["headers"]
 
     @property
-    def content_type(self) -> str:
+    def content_type(self) -> t.Optional[str]:
         return self.request["content_type"]
 
     @property
@@ -54,3 +70,19 @@ class Request(ABC):
     @property
     def json(self) -> t.Any:
         return self.request["json"]
+
+
+class Request(RequestBase):
+    def __init__(self, request: t.Any) -> None:
+        self.request = self.build_metadata(request)
+
+    def build_metadata(self, request: t.Any) -> TRequest:
+        raise NotImplementedError
+
+
+# class AsyncRequest(RequestBase, aobject):
+#     async def __ainit__(self, request: t.Any) -> None:
+#         self.request = await self.build_metadata(request)
+
+#     async def build_metadata(self, request: t.Any) -> TRequest:
+#         raise NotImplementedError

@@ -20,6 +20,7 @@ class LtiAgs:
     Reference: https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim
     """
 
+    # pylint: disable=too-many-arguments
     def __init__(
         self,
         lineitems_url: t.Optional[str] = None,
