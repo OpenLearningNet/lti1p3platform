@@ -1,3 +1,5 @@
+<!-- @format -->
+
 # LTI 1.3 Platform implementation in Python
 
 # Usage
@@ -82,12 +84,6 @@ After all verifications, the platform will generate a `id_token`. The platform e
 from lti1p3platform.message_launch import MessageLaunchAbstract
 
 class LTI1p3MessageLaunch(MessageLaunchAbstract):
-    def get_preflight_response(self):
-        """
-        Get params from the initial OIDC authorization request form, so this mainly depends on your framework. Here is an example for Django framework:
-        """
-        return self._request.GET.dict() or self._request.POST.dict()
-
     def render_launch_form(self, launch_data, **kwargs):
         """
         This will be invoked in the last step of `lti_launch`.
@@ -115,9 +111,17 @@ def lti_resource_link_launch(request, *args, **kwargs):
     return launch.lti_launch(*args, **kwargs)
 ```
 
+## Examples
+
+[Django example](examples/django_platform/README.md)
+
 # Development
 
-## Pass all test
+## Run test
+
+Prerequisite: tox and python 3.7, 3.8, 3.9, 3.10
+
+If you are using pyenv virtualenv, you might need to install all python versions and run `pyenv local 3.7.x 3.8.x 3.9.x 3.10.x` at the first time.
 
 ```bash
 cd lti1p3platform

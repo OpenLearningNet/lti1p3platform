@@ -315,13 +315,13 @@ class LTI1P3PlatformConfAbstract(ABC):
         audience: t.Optional[str] = None,
     ) -> bool:
         """
-        Validate token and return decoded token.
+        Validate token.
 
         Parameters:
             token: Token to validate
 
         Returns:
-            Decoded token
+            is_valid: True if token is valid, False otherwise
         """
         assert self._registration is not None, "Registration not yet set"
 

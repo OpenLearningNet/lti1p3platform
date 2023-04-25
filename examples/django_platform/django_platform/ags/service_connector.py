@@ -180,11 +180,11 @@ class AGS(AssignmentsGradesService):
         for score in page.object_list:
             user_id = score.userId
             result_id = (
-                get_url(reverse("ags_result", kwargs={"lineitem_id": line_item_id}))
+                get_url(reverse("ags-results", kwargs={"lineitem_id": line_item_id}))
                 + f"/{user_id}"
             )
             score_of = get_url(
-                reverse("ags_lineitem", kwargs={"lineitem_id": line_item_id})
+                reverse("ags-lineitem", kwargs={"lineitem_id": line_item_id})
             )
             result_maximum = 1 if score.scoreMaximum <= 0 else score.scoreMaximum
             result_score = score.scoreGiven

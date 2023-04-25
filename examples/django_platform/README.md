@@ -31,10 +31,10 @@ You also need to add platform config to the tool config file [game.json](https:/
         }]
     }
 
-Now there is game example tool you can launch into on the port 9001:
+Now there is game example tool you can launch into on the port 9001 which is already set up in `platform.json`:
 
-    Initial Login URL: http://127.0.0.1:9002/login
-    LTI Launch URL: http://127.0.0.1:9002/launch
-    JWKS URL: http://127.0.0.1:9002/jwks
+    Initial Login URL: http://127.0.0.1:9001/login
+    LTI Launch URL: http://127.0.0.1:9001/launch
+    JWKS URL: http://127.0.0.1:9001/jwks
 
 Now you could go to `http://127.0.0.1:9002/login` to start to play.
