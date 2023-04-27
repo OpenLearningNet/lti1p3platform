@@ -97,5 +97,5 @@ class TestPlatform(LTI1P3PlatformConfAbstract):
             .set_tool_key_set_url(PLATFORM_CONFIG["key_set_url"])
         )
 
-    def get_registration_by_params(self, iss, client_id, **kwargs):
+    def get_registration_by_params(self, **kwargs):
         return self._registration

@@ -7,6 +7,8 @@ from typing_extensions import TypedDict
 
 from .constants import LTI_BASE_MESSAGE
 from .deep_linking import LtiDeepLinking
+from .ags import LtiAgs
+from .request import Request
 from . import exceptions
 
 if t.TYPE_CHECKING:
@@ -25,7 +27,7 @@ class MessageLaunchAbstract(ABC):
     _registration: t.Optional[Registration] = None
 
     def __init__(
-        self, request: t.Any, platform_config: LTI1P3PlatformConfAbstract
+        self, request: Request, platform_config: LTI1P3PlatformConfAbstract
     ) -> None:
         self._request = request
         self._platform_config = platform_config
@@ -39,13 +41,14 @@ class MessageLaunchAbstract(ABC):
         self.lti_claim_custom_parameters: t.Optional[t.Dict[str, t.Any]] = None
 
         # Extra claims - used by LTI Advantage
-        # self.extra_claims = {}
+        self.extra_claims: t.Dict[str, t.Any] = {}
 
         self.id_token_expiration = 5 * 60
 
-    @abstractmethod
     def get_preflight_response(self) -> t.Dict[str, t.Any]:
-        raise NotImplementedError
+        assert self._request is not None
+        # pylint: disable=protected-access
+        return self._request.get_data or self._request.form_data
 
     def prepare_launch(self, preflight_response: t.Dict[str, t.Any]) -> None:
         pass
@@ -278,7 +281,13 @@ class MessageLaunchAbstract(ABC):
             if self.lti_claim_user_data:
                 launch_message.update(self.lti_claim_user_data)
 
+            if self.extra_claims:
+                launch_message.update(self.extra_claims)
+
         return launch_message
+
+    def set_extra_claims(self, extra_claims: t.Dict[str, t.Any]) -> None:
+        self.extra_claims = extra_claims
 
     def validate_preflight_response(
         self, preflight_response: t.Dict[str, t.Any]
@@ -365,6 +374,28 @@ class LTIAdvantageMessageLaunchAbstract(MessageLaunchAbstract):
 
     def set_dl(self, deep_link_return_url: str) -> LTIAdvantageMessageLaunchAbstract:
         self._dl = LtiDeepLinking(deep_link_return_url)
+
+        return self
+
+    # pylint: disable=too-many-arguments
+    def set_ags(
+        self,
+        lineitems_url: str,
+        lineitem_url: t.Optional[str] = None,
+        allow_creating_lineitems: bool = True,
+        results_service_enabled: bool = True,
+        scores_service_enabled: bool = True,
+    ) -> LTIAdvantageMessageLaunchAbstract:
+        self._ags = LtiAgs(
+            lineitems_url,
+            lineitem_url,
+            allow_creating_lineitems,
+            results_service_enabled,
+            scores_service_enabled,
+        )
+
+        # Include LTI AGS claim inside the LTI Launch message
+        self.set_extra_claims(self._ags.get_lti_ags_launch_claim())
 
         return self
 

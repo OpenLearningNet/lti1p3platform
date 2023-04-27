@@ -1,0 +1,11 @@
+{
+    "iss": "https://example.com",
+    "client_id": "12345",
+    "deployment_id": "1",
+    "launch_url": "http://127.0.0.1:9001/launch/",
+    "deeplink_launch_url": "http://127.0.0.1:9001/launch",
+    "oidc_login_url": "http://127.0.0.1:9001/login/",
+    "key_set_url": "http://127.0.0.1:9001/jwks/",
+    "public_key_file": "public.key",
+    "private_key_file": "private.key"
+}

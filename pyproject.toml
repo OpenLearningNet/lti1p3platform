@@ -31,6 +31,7 @@ PyJWT = "1.7.1"
 requests = {version = "2.24.0", extras = ["security"]}
 jwcrypto = "^1.4.2"
 Jinja2 = "^3.1.2"
+python-dateutil = "^2.8.2"
 
 [tool.poetry.dev-dependencies]
 mypy = "^1.1.1"
@@ -54,7 +55,7 @@ include-package-data = true
 
 [tool.setuptools.packages.find]
 include = ["lti1p3platform*"]  # package names should match these glob patterns (["*"] by default)
-exclude = ["lti1p3platform.tests*"]  # exclude packages matching these glob patterns (empty by default)
+exclude = ["lti1p3platform.tests*", "lti1p3platform.examples*"]  # exclude packages matching these glob patterns (empty by default)
 namespaces = false  # to disable scanning PEP 420 namespaces (true by default)
 
 [tool.setuptools.package-data]

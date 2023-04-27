@@ -1,5 +1,6 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
+import time
 import typing as t
 import base64
 import json
@@ -60,7 +61,8 @@ class LTI1P3PlatformConfAbstract(ABC):
 
     @abstractmethod
     def get_registration_by_params(
-        self, iss: str, client_id: str, **kwargs: t.Any
+        self,
+        **kwargs: t.Any,
     ) -> Registration:
         raise NotImplementedError()
 
@@ -184,7 +186,7 @@ class LTI1P3PlatformConfAbstract(ABC):
         # Could not find public key with a matching kid and alg.
         raise LtiException("Unable to find public key")
 
-    def validate_and_decode(self, jwt_token_string: str) -> t.Dict[str, t.Any]:
+    def tool_validate_and_decode(self, jwt_token_string: str) -> t.Dict[str, t.Any]:
         self.validate_jwt_format(jwt_token_string)
 
         public_key = self.get_tool_public_key()
@@ -238,7 +240,7 @@ class LTI1P3PlatformConfAbstract(ABC):
             raise UnsupportedGrantType()
 
         # Validate JWT token
-        self.validate_and_decode(token_request_data["client_assertion"])
+        self.tool_validate_and_decode(token_request_data["client_assertion"])
 
         # Check scopes and only return valid and supported ones
         valid_scopes = []
@@ -280,7 +282,7 @@ class LTI1P3PlatformConfAbstract(ABC):
     ) -> t.List[t.Dict[str, t.Any]]:
         jwt_token_string = token_request_data["JWT"]
 
-        deep_link_response = self.validate_and_decode(jwt_token_string)
+        deep_link_response = self.tool_validate_and_decode(jwt_token_string)
 
         # Check the response is a Deep Linking response type
         message_type = deep_link_response.get(
@@ -305,3 +307,41 @@ class LTI1P3PlatformConfAbstract(ABC):
 
         # Return contentitems
         return content_items  # type: ignore
+
+    def validate_token(
+        self,
+        token: str,
+        allowed_scopes: t.Optional[t.List[str]] = None,
+        audience: t.Optional[str] = None,
+    ) -> bool:
+        """
+        Validate token.
+
+        Parameters:
+            token: Token to validate
+
+        Returns:
+            is_valid: True if token is valid, False otherwise
+        """
+        assert self._registration is not None, "Registration not yet set"
+
+        public_key = self._registration.get_platform_public_key()
+        assert public_key is not None
+
+        token_contents = Registration.decode_and_verify(token, public_key)
+
+        if token_contents.get("iss") != self._registration.get_iss():
+            raise LtiException("Invalid issuer")
+
+        if "exp" in token_contents and token_contents["exp"] < time.time():
+            raise LtiException("Token expired")
+
+        if audience and token_contents.get("aud") != audience:
+            raise LtiException("Invalid audience")
+
+        token_scopes = token_contents.get("scopes", "").split(" ")
+
+        if allowed_scopes:
+            return any(scope in token_scopes for scope in allowed_scopes)
+
+        return True

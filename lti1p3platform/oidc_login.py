@@ -17,6 +17,7 @@ class OIDCLoginAbstract(ABC):
     _platform_config = None
     _registration = None  # type: Registration
     _launch_url = None
+    _lti_message_hint = None
 
     def __init__(
         self, request: t.Any, platform_config: LTI1P3PlatformConfAbstract
@@ -29,9 +30,8 @@ class OIDCLoginAbstract(ABC):
     def set_lti_message_hint(self, **kwargs: t.Any) -> None:
         raise NotImplementedError
 
-    @abstractmethod
-    def get_lti_message_hint(self) -> str:
-        raise NotImplementedError
+    def get_lti_message_hint(self) -> t.Optional[str]:
+        return getattr(self, "_lti_message_hint", None)
 
     def set_launch_url(self, launch_url: str) -> OIDCLoginAbstract:
         self._launch_url = launch_url
