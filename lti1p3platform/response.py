@@ -17,3 +17,7 @@ class Response:
 
     def set_media_type(self, media_type: str) -> None:
         self.media_type = media_type
+
+
+def generate_next_link(link: str) -> str:
+    return f"<{link}>; rel=next"

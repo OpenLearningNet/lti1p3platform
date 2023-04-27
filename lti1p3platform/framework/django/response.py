@@ -1,5 +1,5 @@
 from django.http import JsonResponse
-from lti1p3platform.response import Response
+from lti1p3platform.response import Response, generate_next_link
 
 
 def wrap_json_resp(resp: Response) -> JsonResponse:
@@ -14,7 +14,7 @@ def wrap_json_resp(resp: Response) -> JsonResponse:
         )
 
         if resp.result and "next" in resp.result and resp.result["next"]:
-            response.headers["Link"] = resp.result["next"] + "; rel=next"
+            response.headers["Link"] = generate_next_link(resp.result["next"])
 
         return response
     else:

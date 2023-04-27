@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
 import typing as t
+from urllib.parse import urlencode
 import typing_extensions as te
 
 from .exceptions import LtiServiceException, LineItemNotFoundException
 from .lineitem import TLineItem
 from .score import TScore, UpdateScoreStatus, UPDATE_SCORE_STATUSCODE
-from .result import TResult
 from .request import Request
 from .response import Response
 from .ltiplatform import LTI1P3PlatformConfAbstract
@@ -15,8 +15,10 @@ TPage = te.TypedDict(
     "TPage",
     {
         "content": t.List[t.Any],
-        "next": bool,
+        "has_next": bool,
+        "next": t.Optional[str],
     },
+    total=False,
 )
 
 F = t.TypeVar("F", bound=t.Callable[..., Response])
@@ -76,15 +78,16 @@ class AssignmentsGradesService(ABC):
         request: Request,
         platform_config: LTI1P3PlatformConfAbstract,
         lineitems_url: str,
-        allow_creating_lineitems: bool,
-        results_service_enabled: bool,
-        scores_service_enabled: bool,
+        lineitem_url: t.Optional[str] = None,
+        allow_creating_lineitems: bool = True,
+        results_service_enabled: bool = True,
+        scores_service_enabled: bool = True,
     ) -> None:
         self.request = request
         self.platform_config = platform_config
         self.ags = LtiAgs(
-            lineitems_url,
-            None,
+            lineitems_url.rstrip("/"),
+            lineitem_url.rstrip("/") if lineitem_url else None,
             allow_creating_lineitems,
             results_service_enabled,
             scores_service_enabled,
@@ -99,7 +102,7 @@ class AssignmentsGradesService(ABC):
     def find_lineitems(
         self,
         page: int = 1,
-        limit: int = 10,
+        limit: t.Optional[int] = None,
         line_item_id: t.Optional[str] = None,
         resource_link_id: t.Optional[str] = None,
         resource_id: t.Optional[str] = None,
@@ -138,8 +141,12 @@ class AssignmentsGradesService(ABC):
 
     @abstractmethod
     def get_results(
-        self, line_item_id: str, page: int, limit: int, user_id: t.Optional[str] = None
-    ) -> t.List[TResult]:
+        self,
+        line_item_id: str,
+        page: int = 1,
+        limit: t.Optional[int] = None,
+        user_id: t.Optional[str] = None,
+    ) -> TPage:
         raise NotImplementedError()
 
     def handle_resp(self, func: t.Callable[..., Response], **kwargs: t.Any) -> Response:
@@ -161,6 +168,15 @@ class AssignmentsGradesService(ABC):
 
         try:
             results = self.get_results(line_item_id, **lti_params)
+
+            if results["has_next"]:
+                page = lti_params.get("page", 1)
+                lti_params["page"] = page + 1
+
+                results[
+                    "next"
+                ] = f"{self.ags.lineitem_url}/results?{urlencode(lti_params)}"
+
             return Response(result=results, code=200, message="success")
         except LineItemNotFoundException:
             return Response(result=None, code=404, message="Not found")
@@ -194,6 +210,12 @@ class AssignmentsGradesService(ABC):
         lti_params = self.request.get_data
 
         lineitems = self.find_lineitems(**lti_params)
+        if lineitems["has_next"]:
+            page = lti_params.get("page", 1)
+            lti_params["page"] = page + 1
+
+            lineitems["next"] = f"{self.ags.lineitems_url}?{urlencode(lti_params)}"
+
         return Response(
             result=lineitems,
             code=200,

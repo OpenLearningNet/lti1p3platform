@@ -6,15 +6,16 @@ from lti1p3platform.framework.django.request import DjangoRequest
 from lti1p3platform.framework.django.response import wrap_json_resp
 
 from .service_connector import AGS
-from ..views import get_registered_platform
+from ..views import (
+    get_registered_platform,
+    ALLOW_CREATING_LINEITEMS,
+    RESULTS_SERVICE_ENABLED,
+    SCORES_SERVICE_ENABLED,
+)
 from ..helpers import get_url
 
-ALLOW_CREATING_LINEITEMS = True
-RESULTS_SERVICE_ENABLED = True
-SCORES_SERVICE_ENABLED = True
 
-
-def _get_service_connector(request):
+def _get_service_connector(request, lineitem_id=None):
     django_request = DjangoRequest(request)
     platform_config = get_registered_platform()
 
@@ -22,6 +23,7 @@ def _get_service_connector(request):
         django_request,
         platform_config,
         get_url(reverse("ags-lineitems")),
+        get_url(reverse("ags-lineitem", args=[lineitem_id])) if lineitem_id else None,
         ALLOW_CREATING_LINEITEMS,
         RESULTS_SERVICE_ENABLED,
         SCORES_SERVICE_ENABLED,
@@ -37,7 +39,7 @@ class LineItemView(View):
 
     # pylint: disable=unused-argument
     def get(self, request, *args, **kwargs):
-        service_connector = _get_service_connector(request)
+        service_connector = _get_service_connector(request, kwargs["lineitem_id"])
         resp = service_connector.handle_resp(
             service_connector.handle_get_lineitem, line_item_id=kwargs["lineitem_id"]
         )
@@ -46,7 +48,7 @@ class LineItemView(View):
 
     # pylint: disable=unused-argument
     def put(self, request, *args, **kwargs):
-        service_connector = _get_service_connector(request)
+        service_connector = _get_service_connector(request, kwargs["lineitem_id"])
         resp = service_connector.handle_resp(
             service_connector.handle_update_lineitem, line_item_id=kwargs["lineitem_id"]
         )
@@ -77,7 +79,7 @@ class LineItemsView(View):
 
 
 def get_results(request, lineitem_id):
-    service_connector = _get_service_connector(request)
+    service_connector = _get_service_connector(request, lineitem_id)
 
     resp = service_connector.handle_resp(
         service_connector.handle_get_results, line_item_id=lineitem_id
@@ -88,7 +90,7 @@ def get_results(request, lineitem_id):
 
 @method_decorator(csrf_exempt)
 def update_scores(request, lineitem_id):
-    service_connector = _get_service_connector(request)
+    service_connector = _get_service_connector(request, lineitem_id)
 
     resp = service_connector.handle_resp(
         service_connector.handle_update_score, line_item_id=lineitem_id

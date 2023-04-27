@@ -18,6 +18,9 @@ from lti1p3platform.registration import Registration
 from .helpers import get_url
 
 USER_ID = "user_id"
+ALLOW_CREATING_LINEITEMS = True
+RESULTS_SERVICE_ENABLED = True
+SCORES_SERVICE_ENABLED = True
 
 
 class LTIPlatformConf(LTI1P3PlatformConfAbstract):
@@ -88,7 +91,15 @@ def preflight_lti_1p3_launch(request):
 def authorization(request):
     platform = get_registered_platform()
     launch_req = DjangoLTI1P3MessageLaunch(DjangoRequest(request), platform)
-    launch_req.set_ags(get_url(reverse("ags-lineitems")), None, True, True, True)
+
+    launch_req.set_ags(
+        get_url(reverse("ags-lineitems")),
+        None,
+        ALLOW_CREATING_LINEITEMS,
+        RESULTS_SERVICE_ENABLED,
+        SCORES_SERVICE_ENABLED,
+    )
+
     launch_req.set_user_data(
         USER_ID,
         ["http://purl.imsglobal.org/vocab/lis/v2/system/person#User"],

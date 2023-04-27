@@ -1,22 +1,22 @@
 import typing as t
 
 from dateutil import parser
-from django.urls import reverse
+
 from django.core.paginator import Paginator
 from django.core.exceptions import ObjectDoesNotExist
 from lti1p3platform.service_connector import AssignmentsGradesService, TPage
 from lti1p3platform.lineitem import TLineItem
 from lti1p3platform.score import TScore, UpdateScoreStatus
+from lti1p3platform.result import TResult
 from lti1p3platform.exceptions import LineItemNotFoundException
 
 from .models import LineItem, Score
-from ..helpers import get_url
 
 
 class AGS(AssignmentsGradesService):
     def lineitem_serializer(self, lineitem: LineItem) -> TLineItem:
         return {
-            "id": get_url(reverse("ags-lineitem", args=[lineitem.id])),
+            "id": f"{self.ags.lineitems_url}/{lineitem.id}",
             "label": lineitem.label,
             "resourceId": lineitem.resource_id,
             "tag": lineitem.tag,
@@ -30,36 +30,46 @@ class AGS(AssignmentsGradesService):
     def find_lineitems(
         self,
         page: int = 1,
-        limit: int = 10,
+        limit: t.Optional[int] = None,
         line_item_id: t.Optional[str] = None,
         resource_link_id: t.Optional[str] = None,
         resource_id: t.Optional[str] = None,
         tag: t.Optional[str] = None,
     ) -> TPage:
         line_items = LineItem.objects  # pylint: disable=no-member
+
         if line_item_id:
             line_items = line_items.filter(id=line_item_id)
 
         if resource_link_id:
-            line_items = line_items.filter(resourceLinkId=resource_link_id)
+            line_items = line_items.filter(resourceLinkId=resource_link_id).order_by(
+                LineItem.resource_link_id
+            )
 
         if resource_id:
-            line_items = line_items.filter(resourceId=resource_id)
+            line_items = line_items.filter(resourceId=resource_id).order_by(
+                LineItem.resource_id
+            )
 
         if tag:
-            line_items = line_items.filter(tag=tag)
+            line_items = line_items.filter(tag=tag).order_by(LineItem.tag)
 
         line_items = line_items.all()
-        paginator = Paginator(line_items, limit)
-        page = paginator.get_page(page)
-
         results = []
-        for line_item in page:
-            results.append(self.lineitem_serializer(line_item))
+        current_page = None
+        if limit:
+            paginator = Paginator(line_items, limit)
+            current_page = paginator.get_page(page)
+
+            for line_item in current_page:
+                results.append(self.lineitem_serializer(line_item))
+        else:
+            for line_item in line_items:
+                results.append(self.lineitem_serializer(line_item))
 
         return {
             "content": results,
-            "next": page.has_next(),
+            "has_next": current_page.has_next() if current_page else False,
         }
 
     def find_lineitem_by_id(self, line_item_id: str) -> LineItem:
@@ -119,7 +129,7 @@ class AGS(AssignmentsGradesService):
     def delete_lineitem(
         self,
         line_item_id: str,
-    ):
+    ) -> None:
         line_item = self.find_lineitem_by_id(line_item_id)
         line_item.delete()
 
@@ -163,8 +173,26 @@ class AGS(AssignmentsGradesService):
 
         return UpdateScoreStatus.SUCCESS
 
+    def score_serializer(self, score: Score) -> TResult:
+        result_id = f"{self.ags.lineitem_url}/results/{score.userId}"
+        score_of = self.ags.lineitem_url
+        result_maximum = 1 if score.scoreMaximum <= 0 else score.scoreMaximum
+        result_score = score.scoreGiven
+
+        return {
+            "id": result_id,
+            "userId": score.userId,
+            "scoreOf": score_of,
+            "resultScore": result_score,
+            "resultMaximum": result_maximum,
+        }
+
     def get_results(
-        self, line_item_id: str, page: int, limit: int, user_id: t.Optional[str] = None
+        self,
+        line_item_id: str,
+        page: int = 1,
+        limit: t.Optional[int] = None,
+        user_id: t.Optional[str] = None,
     ) -> TPage:
         line_item = self.find_lineitem_by_id(line_item_id)
         scores = Score.objects.filter(lineItem=line_item)  # pylint: disable=no-member
@@ -173,30 +201,19 @@ class AGS(AssignmentsGradesService):
             scores = scores.filter(userId=user_id)
 
         scores = scores.all()
-        paginator = Paginator(scores, limit)
-        page = paginator.get_page(page)
-
         results = []
-        for score in page.object_list:
-            user_id = score.userId
-            result_id = (
-                get_url(reverse("ags-results", kwargs={"lineitem_id": line_item_id}))
-                + f"/{user_id}"
-            )
-            score_of = get_url(
-                reverse("ags-lineitem", kwargs={"lineitem_id": line_item_id})
-            )
-            result_maximum = 1 if score.scoreMaximum <= 0 else score.scoreMaximum
-            result_score = score.scoreGiven
+        current_page = None
+        if limit:
+            paginator = Paginator(scores, limit)
+            current_page = paginator.get_page(page)
 
-            results.append(
-                {
-                    "id": result_id,
-                    "userId": user_id,
-                    "scoreOf": score_of,
-                    "resultScore": result_score,
-                    "resultMaximum": result_maximum,
-                }
-            )
+            for score in current_page.object_list:
+                results.append(self.score_serializer(score))
+        else:
+            for score in scores:
+                results.append(self.score_serializer(score))
 
-        return {"content": results, "next": page.has_next()}
+        return {
+            "content": results,
+            "has_next": current_page.has_next() if current_page else False,
+        }
