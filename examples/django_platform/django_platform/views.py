@@ -18,6 +18,7 @@ from lti1p3platform.registration import Registration
 from .helpers import get_url
 
 USER_ID = "user_id"
+CONTEXT_ID = "context_id"
 ALLOW_CREATING_LINEITEMS = True
 RESULTS_SERVICE_ENABLED = True
 SCORES_SERVICE_ENABLED = True
@@ -88,6 +89,15 @@ def preflight_lti_1p3_launch(request):
     return oidc_login.initiate_login(USER_ID)
 
 
+def get_user_data():
+    return {
+        "user_id": USER_ID,
+        "lis_roles": ["http://purl.imsglobal.org/vocab/lis/v2/system/person#User"],
+        "full_name": "John Doe",
+        "email_address": "john@example.com",
+    }
+
+
 def authorization(request):
     platform = get_registered_platform()
     launch_req = DjangoLTI1P3MessageLaunch(DjangoRequest(request), platform)
@@ -100,15 +110,18 @@ def authorization(request):
         SCORES_SERVICE_ENABLED,
     )
 
-    launch_req.set_user_data(
-        USER_ID,
-        ["http://purl.imsglobal.org/vocab/lis/v2/system/person#User"],
-        full_name="John Doe",
-        email_address="john@example.com",
-    )
+    user_data = get_user_data()
+    launch_req.set_user_data(**user_data)
     launch_req.set_resource_link_claim(
         resource_link_id="resource_link_id",
     )
+    launch_req.set_launch_context_claim(
+        context_id=CONTEXT_ID,
+        context_types=["http://purl.imsglobal.org/vocab/lis/v2/course#Group"],
+        context_label="Test Course",
+        context_title="Test Course",
+    )
+    launch_req.set_nrps(get_url(reverse("nrps", kwargs={"context_id": CONTEXT_ID})))
 
     return launch_req.lti_launch()
 

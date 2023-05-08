@@ -9,7 +9,8 @@ class DjangoRequest(Request):
         assert isinstance(request, HttpRequest)
 
         json_data = None
-        if request.body and request.content_type == "application/json":
+
+        if request.body and request.content_type and "json" in request.content_type:
             json_data = json.loads(request.body)
 
         return {

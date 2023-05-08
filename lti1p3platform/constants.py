@@ -7,12 +7,7 @@ LTI_BASE_MESSAGE = {
     "https://purl.imsglobal.org/spec/lti/claim/version": "1.3.0",
 }
 
-LTI_DEEP_LINKING_ACCEPTED_TYPES = {
-    "ltiResourceLink",
-    "link",
-    "html",
-    "image",
-}
+LTI_DEEP_LINKING_ACCEPTED_TYPES = {"ltiResourceLink", "link", "html", "image", "file"}
 
 LTI_1P3_ACCESS_TOKEN_REQUIRED_CLAIMS = {
     "grant_type",

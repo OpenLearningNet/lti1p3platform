@@ -8,3 +8,5 @@ disable=
 extension-pkg-whitelist=pydantic
 ignore=framework, migrations
 
+[BASIC]
+good-names=id

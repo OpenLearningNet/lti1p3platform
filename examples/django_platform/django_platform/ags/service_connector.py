@@ -176,8 +176,8 @@ class AGS(AssignmentsGradesService):
     def score_serializer(self, score: Score) -> TResult:
         result_id = f"{self.ags.lineitem_url}/results/{score.userId}"
         score_of = self.ags.lineitem_url
-        result_maximum = 1 if score.scoreMaximum <= 0 else score.scoreMaximum
-        result_score = score.scoreGiven
+        result_maximum = 1 if score.score_maximum <= 0 else score.score_maximum
+        result_score = score.score_given
 
         return {
             "id": result_id,

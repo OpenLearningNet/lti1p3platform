@@ -31,3 +31,15 @@ TLineItem = te.TypedDict(
     },
     total=False,
 )
+
+TDeepLinkingLineItem = te.TypedDict(
+    "TDeepLinkingLineItem",
+    {
+        "label": str,
+        "scoreMaximum": int,
+        "resourceId": str,
+        "tag": str,
+        "gradesReleased": bool,
+    },
+    total=False,
+)

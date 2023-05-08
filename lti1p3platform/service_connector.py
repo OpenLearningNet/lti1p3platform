@@ -10,6 +10,9 @@ from .request import Request
 from .response import Response
 from .ltiplatform import LTI1P3PlatformConfAbstract
 from .ags import LtiAgs
+from .nrps import LtiNrps
+from .membership import Context, ContextMembership, Status
+from .utils import dataclass_to_dict
 
 TPage = te.TypedDict(
     "TPage",
@@ -69,7 +72,19 @@ def authenticate(
     return wrapper
 
 
-class AssignmentsGradesService(ABC):
+# pylint: disable=too-few-public-methods
+class BasicService(ABC):
+    def __init__(self, *args: t.Any, **kwargs: t.Any) -> None:
+        pass
+
+    def handle_resp(self, func: t.Callable[..., Response], **kwargs: t.Any) -> Response:
+        try:
+            return func(**kwargs)
+        except LtiServiceException as error:
+            return Response(result=None, code=error.status_code, message=error.message)
+
+
+class AssignmentsGradesService(BasicService):
     request = None
 
     # pylint: disable=too-many-arguments
@@ -148,12 +163,6 @@ class AssignmentsGradesService(ABC):
         user_id: t.Optional[str] = None,
     ) -> TPage:
         raise NotImplementedError()
-
-    def handle_resp(self, func: t.Callable[..., Response], **kwargs: t.Any) -> Response:
-        try:
-            return func(**kwargs)
-        except LtiServiceException as error:
-            return Response(result=None, code=error.status_code, message=error.message)
 
     @authenticate(
         allow_methods=["GET"], accept="application/vnd.ims.lis.v2.resultcontainer+json"
@@ -265,3 +274,99 @@ class AssignmentsGradesService(ABC):
             return Response(result=None, code=204, message="success")
         except LineItemNotFoundException:
             return Response(result=None, code=404, message="Line item not found")
+
+
+class NamesRoleProvisioningService(BasicService):
+    request = None
+
+    def __init__(
+        self,
+        request: Request,
+        platform_config: LTI1P3PlatformConfAbstract,
+        context_memberships_url: str,
+    ) -> None:
+        self.request = request
+        self.platform_config = platform_config
+        self.nrps = LtiNrps(context_memberships_url=context_memberships_url)
+
+    @property
+    def allowed_scopes(self) -> t.List[str]:
+        return self.nrps.get_available_scopes()
+
+    @abstractmethod
+    def get_member_data_page(
+        self,
+        page: int = 1,
+        limit: t.Optional[int] = None,
+        role: t.Optional[str] = None,
+        since: t.Optional[
+            str
+        ] = None,  # https://www.imsglobal.org/spec/lti-nrps/v2p0#membership-differences
+    ) -> TPage:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_context_by_id(self) -> Context:
+        raise NotImplementedError
+
+    def is_resource_link_valid(self, context_id: str, resource_link_id: str) -> bool:
+        raise NotImplementedError
+
+    def clean_members(self, members: t.List[t.Any]) -> t.List[t.Any]:
+        res = []
+
+        for member in members:
+            if "user_id" not in member:
+                raise LtiServiceException("No user_id", 400)
+            if "roles" not in member:
+                raise LtiServiceException("No roles", 400)
+
+            if not member.get("status"):
+                member["status"] = Status.ACTIVE.value
+
+            res.append(member)
+
+        return res
+
+    @authenticate(
+        allow_methods=["GET"],
+        accept="application/vnd.ims.lti-nrps.v2.membershipcontainer+json",
+    )
+    def handle_get_members(self) -> Response:
+        assert self.request is not None
+
+        query_params = self.request.get_data
+
+        resource_link_id = query_params.get("rlid")
+        context = self.get_context_by_id()
+
+        res = ContextMembership(
+            id=self.nrps.context_memberships_url,
+            context=context,
+        )
+
+        if resource_link_id:
+            # A platform must deny access to this request if the Resource Link
+            # is not owned by the Tool making the request or the resource link
+            # is not present in the Context.
+            if not self.is_resource_link_valid(context.id, resource_link_id):
+                return Response(result=None, code=403, message="Access denied")
+
+        response = dataclass_to_dict(res)
+        members_page = self.get_member_data_page(**query_params)
+
+        # member data is actually passed to the Tool relies on the agreement
+        # between the Platform and the Tool.but it contains user_id, roles,
+        # any other member attributes will need an explicit consent from the
+        # Platform to be shared with the Tool.
+        response["members"] = self.clean_members(members_page["content"])
+
+        if "limit" in query_params and members_page["has_next"]:
+            page = query_params.get("page", 1)
+            query_params["page"] = page + 1
+
+            response[
+                "next"
+            ] = f"{self.nrps.context_memberships_url}?{urlencode(query_params)}"
+
+        return Response(result=response, code=200, message="success")
