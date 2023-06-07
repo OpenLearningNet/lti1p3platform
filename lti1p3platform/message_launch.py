@@ -8,6 +8,7 @@ from typing_extensions import TypedDict
 from .constants import LTI_BASE_MESSAGE
 from .deep_linking import LtiDeepLinking
 from .ags import LtiAgs
+from .nrps import LtiNrps
 from .request import Request
 from . import exceptions
 
@@ -287,7 +288,7 @@ class MessageLaunchAbstract(ABC):
         return launch_message
 
     def set_extra_claims(self, extra_claims: t.Dict[str, t.Any]) -> None:
-        self.extra_claims = extra_claims
+        self.extra_claims.update(extra_claims)
 
     def validate_preflight_response(
         self, preflight_response: t.Dict[str, t.Any]
@@ -371,9 +372,22 @@ class LTIAdvantageMessageLaunchAbstract(MessageLaunchAbstract):
     _dl = None  # deep linking service
     _nrps = None  # Names and Role Provisioning Service
     _ags = None  # Assignments and Grades services
+    _nrps = None  # Names and Role Provisioning Service
+    _deep_linking_launch_data = None
 
-    def set_dl(self, deep_link_return_url: str) -> LTIAdvantageMessageLaunchAbstract:
+    # pylint: disable=too-many-arguments
+    def set_dl(
+        self,
+        deep_link_return_url: str,
+        title: str = "",
+        description: str = "",
+        accept_types: t.Optional[t.Set[str]] = None,
+        extra_data: t.Optional[t.Dict[str, t.Any]] = None,
+    ) -> LTIAdvantageMessageLaunchAbstract:
         self._dl = LtiDeepLinking(deep_link_return_url)
+        self._deep_linking_launch_data = self._dl.get_lti_deep_linking_launch_claim(
+            title, description, accept_types, extra_data
+        )
 
         return self
 
@@ -399,6 +413,15 @@ class LTIAdvantageMessageLaunchAbstract(MessageLaunchAbstract):
 
         return self
 
+    def set_nrps(
+        self, context_memberships_url: str
+    ) -> LTIAdvantageMessageLaunchAbstract:
+        self._nrps = LtiNrps(context_memberships_url)
+
+        self.set_extra_claims(self._nrps.get_lti_nrps_launch_claim())
+
+        return self
+
     def generate_launch_request(self) -> LaunchData:
         assert self._registration, "Registration is required"
 
@@ -416,7 +439,8 @@ class LTIAdvantageMessageLaunchAbstract(MessageLaunchAbstract):
                 }
             )
 
-            launch_message.update(self._dl.get_lti_deep_linking_launch_claim())
+            if self._deep_linking_launch_data:
+                launch_message.update(self._deep_linking_launch_data)
 
             return {
                 "state": state,

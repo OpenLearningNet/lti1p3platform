@@ -24,4 +24,5 @@ urlpatterns = [
     path("access_token", access_token, name="platform-access-token"),
     path("jwks", get_jwks, name="platform-jwk"),
     path("lineitems/", include("django_platform.ags.urls")),
+    path("memberships/", include("django_platform.nrps.urls")),
 ]
