@@ -363,7 +363,7 @@ class MessageLaunchAbstract(ABC):
         launch_data = self.generate_launch_request()
 
         launch_data_copy = dict(launch_data)
-        launch_data_copy.update({"launch_url": self.get_launch_url()})
+        launch_data_copy.update({"launch_url": preflight_response.get("redirect_uri")})
 
         return self.render_launch_form(launch_data_copy, **kwargs)
 
