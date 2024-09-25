@@ -33,6 +33,7 @@ class MessageLaunchAbstract(ABC):
         self._request = request
         self._platform_config = platform_config
         self._launch_url: t.Optional[str] = None
+        self._redirec_url: t.Optional[str] = None
 
         # IMS LTI Claim data
         self.lti_claim_user_data: t.Optional[t.Dict[str, t.Any]] = None
@@ -310,6 +311,8 @@ class MessageLaunchAbstract(ABC):
                 preflight_response.get("client_id")
                 == self._registration.get_client_id()
             )
+
+            self._redirec_url = preflight_response.get("redirect_uri")
         except AssertionError as err:
             raise exceptions.PreflightRequestValidationException from err
 
@@ -363,7 +366,7 @@ class MessageLaunchAbstract(ABC):
         launch_data = self.generate_launch_request()
 
         launch_data_copy = dict(launch_data)
-        launch_data_copy.update({"launch_url": self.get_launch_url()})
+        launch_data_copy.update({"launch_url": self._redirec_url})
 
         return self.render_launch_form(launch_data_copy, **kwargs)
 
