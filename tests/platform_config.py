@@ -40,33 +40,47 @@ iq+9uBNvlRDE76fLDfRg/X5jd3SOw4NC8b2bwJtSqiYMQol2nLXdZJc=
 -----END RSA PRIVATE KEY-----"""
 
 TOOL_PRIVATE_KEY_PEM = """-----BEGIN RSA PRIVATE KEY-----
-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
+MIIEpQIBAAKCAQEArmvKMXDFoYZLcntMz03TubvlFaMX2Xz/91znD1dmenUjT20s
+WwL2ksjV0Sh87lrbD3p19pNTaqxt/16b48bqePkfWh5IustQ3HVxoQslD1DTiMpE
+qliqYtVRCST4e0fHOaAzWmqhS5Ve8CJpK0hAlKoukj4zqCNOjGm1t/aIJNVeZjun
+MnqOvJB2KU3cp624CDOEaLv4k+PF3NynMM6+gp/GBVDQtmMe0K6A9Yi957aHstxS
+zBHNWQLV2Ng5xuX4XKOC27xk1H62U3VfFevPb25ipatcHffe3d1R8NV6ZgLrAXTK
+ZH/FsnZsFoVkgFiqIPSbI5EyBg/FekX1BlAB9wIDAQABAoIBAEp7eSJXt+1b/cfr
+Y0d7Qpij5hWxSbP0LxIguALTHc3ZS7TVOAW9ZDIWVUg18/ONFNKtRsZ+7zY0X9yX
+OBaykNoL+BlxqTkrLWKXPGi66554s3xMc7oSluARm8M96GYspqSzBnrr4ej25k3B
+RAvZlMpnSe/lZAW+3gIT+ieOvWCMkCLhqu9txHsbKKiWnfHSG56IcQK2clpOyw/x
+bd1D2iE/xldBY93IS7HRHl83IeV1+hSNpEm+eYalzCJ4hyP47iBqlUOUIH5hssiQ
+G3vSnC9mcPYWzmOxYVdx61Ts21pTVVL1hqVWtxIpxA0fJmJQrNyfZGkDqEKAEAU3
+3Jv4vwECgYEA4Xx6wW8770yGPrPzJcF6rAIzCYHOpKDZLS/icroy4F5ShmSB6Mbw
+LMjQ3CufGkBSX0Jx3USiVUhclH2LmjfJQ1bD+J6qrieildxRXr7UktHP2jRIcYZ1
+2B7JhL/l2FM+Jbu0WW3+igCCM51pGQ6bttMXv4UoAXvBJ0ZUekjDlTcCgYEAxgZC
+Ob6OAUn0C6BRO5sr9CSNwdbHFPi4ef0MqozgVSh5TmtVtegOcDDpeo+l5spj9f7O
+q6/899gpPUZBEIHGSAKEzOdO9s/3SLYx4v7x/QXNgsjynj4obUzCb+qN04N1bdIC
+uicaEJDskkZCE/9ZUvlyqkFq4R7uffSk5hPxWUECgYEAkfh9l1+lEyMc/NaNn3GD
+MnsyAwOPfK/MKB6Jn+++I9Wr4uiJ2OGAdd2CqCVtGBdvu89N2woldMQletNTXoCi
+v/8ZWoeMwrVR4WYBHy62el1tCzsxcpyzCTfVCSUZbFNnNhIvjH1SfJAbucI7WUdF
+srMw+oD/BwbQYdZ7tbYJNz0CgYEAhEHL23tMpsm4yEcT2iaiLZZ4Yz1Ki9QuibMb
+0ZDzh4zXsCt5/Ft3wTC5z5S/bixApRzA9eQ9pV7m9DjG3fp+7rtX7O6US73MX/Dn
+0r8J6j8E6lPBzzSelZmNx2e1v83uESIRljjlbKkOiAeKvIZwJz3ZeqLkemTJTrCl
+rdEmAcECgYEA1cxZ3PbIPeb5xj8voI21NOgRypeKkOCpQAu3F1fNt2bEclCpwdKf
+lMC6tgLPIf0DfSH29CAMXWYsd5AbviY+j/r1IeOBg/gcS+TivQoZ1x/ofOtrjiNf
+jy6zm1iI9fl68rWRir5C4G7x3Rhre1ftDCbOk8q/6puixj2zzQrLuN4=
 -----END RSA PRIVATE KEY-----
 """
+
+TOOL_KEY_SET = {
+    "keys": [
+        {
+            "kty": "RSA",
+            "e": "AQAB",
+            # pylint: disable=line-too-long
+            "n": "rmvKMXDFoYZLcntMz03TubvlFaMX2Xz_91znD1dmenUjT20sWwL2ksjV0Sh87lrbD3p19pNTaqxt_16b48bqePkfWh5IustQ3HVxoQslD1DTiMpEqliqYtVRCST4e0fHOaAzWmqhS5Ve8CJpK0hAlKoukj4zqCNOjGm1t_aIJNVeZjunMnqOvJB2KU3cp624CDOEaLv4k-PF3NynMM6-gp_GBVDQtmMe0K6A9Yi957aHstxSzBHNWQLV2Ng5xuX4XKOC27xk1H62U3VfFevPb25ipatcHffe3d1R8NV6ZgLrAXTKZH_FsnZsFoVkgFiqIPSbI5EyBg_FekX1BlAB9w",
+            "kid": "GJG742QQDFgOPSqJMQdr_Q-nkiJgYjd-WVXPRWkS7D8",
+            "alg": "RS256",
+            "use": "sig",
+        }
+    ]
+}
 
 PLATFORM_CONFIG = {
     "iss": "http://test-platform.example/",
@@ -94,7 +108,7 @@ class TestPlatform(LTI1P3PlatformConfAbstract):
             .set_launch_url(PLATFORM_CONFIG["launch_url"])
             .set_platform_public_key(RSA_PUBLIC_KEY_PEM)
             .set_platform_private_key(RSA_PRIVATE_KEY_PEM)
-            .set_tool_key_set_url(PLATFORM_CONFIG["key_set_url"])
+            .set_tool_key_set(TOOL_KEY_SET)
         )
 
     def get_registration_by_params(self, **kwargs):
