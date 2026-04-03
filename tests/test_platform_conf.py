@@ -39,6 +39,7 @@ def test_get_access_tokens():
     jwt_claims = {
         "iss": PLATFORM_CONFIG["client_id"],
         "sub": PLATFORM_CONFIG["client_id"],
+        "aud": [PLATFORM_CONFIG["access_token_url"]],
         "iat": int(time.time()) - 5,
         "exp": int(time.time()) + 60,
         "jti": "lti-service-token-" + str(uuid.uuid4()),

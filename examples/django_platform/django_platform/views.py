@@ -42,6 +42,10 @@ class LTIPlatformConf(LTI1P3PlatformConfAbstract):
             .set_platform_private_key(platform_settings["private_key"])
         )
 
+        access_token_url = platform_settings.get("access_token_url")
+        if access_token_url:
+            registration.set_access_token_url(access_token_url)
+
         self._registration = registration
 
     def get_registration_by_params(self, **kwargs: t.Any) -> Registration:

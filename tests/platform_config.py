@@ -86,6 +86,7 @@ PLATFORM_CONFIG = {
     "iss": "http://test-platform.example/",
     "client_id": "test-platform",
     "deployment_id": 1,
+    "access_token_url": "https://test-platform.example/token",
     "launch_url": "https://lti-ri.imsglobal.org/lti/tools/3674/launches",
     "oidc_login_url": "https://lti-ri.imsglobal.org/lti/tools/3674/login_initiations",
     "key_set_url": "https://lti-ri.imsglobal.org/lti/tools/3674/.well-known/jwks.json",
@@ -104,6 +105,7 @@ class TestPlatform(LTI1P3PlatformConfAbstract):
             .set_iss(PLATFORM_CONFIG["iss"])
             .set_client_id(PLATFORM_CONFIG["client_id"])
             .set_deployment_id(PLATFORM_CONFIG["deployment_id"])
+            .set_access_token_url(PLATFORM_CONFIG["access_token_url"])
             .set_oidc_login_url(PLATFORM_CONFIG["oidc_login_url"])
             .set_launch_url(PLATFORM_CONFIG["launch_url"])
             .set_platform_public_key(RSA_PUBLIC_KEY_PEM)

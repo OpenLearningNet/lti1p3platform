@@ -25,8 +25,10 @@ class Registration:
     _client_id = None
     _deployment_id = None
     _oidc_login_url = None
+    _access_token_url = None
     _tool_keyset_url = None
     _tool_keyset = None
+    _tool_redirect_uris = None
     _platform_public_key = None
     _platform_private_key = None
     _deeplink_launch_url = None
@@ -69,6 +71,12 @@ class Registration:
         Get Platform public key in PEM format
         """
         return self._platform_public_key
+
+    def get_access_token_url(self) -> t.Optional[str]:
+        """
+        Get OAuth 2 access token URL (authorization server audience)
+        """
+        return self._access_token_url
 
     def get_platform_private_key(self) -> t.Optional[str]:
         """
@@ -121,6 +129,14 @@ class Registration:
         Set OIDC login url
         """
         self._oidc_login_url = oidc_login_url
+
+        return self
+
+    def set_access_token_url(self, access_token_url: str) -> Registration:
+        """
+        Set OAuth 2 access token URL (authorization server audience)
+        """
+        self._access_token_url = access_token_url
 
         return self
 
@@ -192,6 +208,13 @@ class Registration:
         self._tool_keyset = key_set
         return self
 
+    def get_tool_redirect_uris(self) -> t.Optional[t.List[str]]:
+        return self._tool_redirect_uris
+    
+    def set_tool_redirect_uris(self, redirect_uris: t.List[str]) -> Registration:
+        self._tool_redirect_uris = redirect_uris
+        return self
+
     @staticmethod
     def encode_and_sign(
         payload: t.Dict[str, t.Any],
@@ -211,8 +234,20 @@ class Registration:
         return encoded_jwt
 
     @staticmethod
-    def decode_and_verify(encoded_jwt: str, public_key: str) -> t.Dict[str, t.Any]:
-        return jwt.decode(encoded_jwt, public_key, algorithms=["RS256"])
+    def decode_and_verify(
+        encoded_jwt: str,
+        public_key: str,
+        audience: t.Optional[str] = None,
+    ) -> t.Dict[str, t.Any]:
+        decode_kwargs: t.Dict[str, t.Any] = {
+            "algorithms": ["RS256"],
+            "options": {"verify_aud": bool(audience)},
+        }
+
+        if audience:
+            decode_kwargs["audience"] = audience
+
+        return jwt.decode(encoded_jwt, public_key, **decode_kwargs)
 
     def platform_encode_and_sign(
         self, payload: t.Dict[str, t.Any], expiration: t.Optional[int] = None

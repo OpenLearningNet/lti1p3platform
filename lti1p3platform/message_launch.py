@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import typing as t
+from urllib.parse import urlparse
 
 from abc import ABC, abstractmethod
 from typing_extensions import TypedDict
@@ -304,15 +305,27 @@ class MessageLaunchAbstract(ABC):
         assert self._registration
 
         try:
+            assert preflight_response.get("response_type") == "id_token", "Invalid response type in preflight response"
+            assert preflight_response.get("scope") == "openid", "Invalid scope in preflight response"
             assert preflight_response.get("nonce")
             assert preflight_response.get("state")
-            assert preflight_response.get("redirect_uri")
+            redirect_uri = preflight_response.get("redirect_uri")
+            assert redirect_uri and redirect_uri in self._registration.get_tool_redirect_uris()  # pylint: disable=line-too-long
+
+            parsed_redirect_uri = urlparse(redirect_uri)
+            if parsed_redirect_uri.scheme != "https":
+                is_allowed_loopback = (
+                    parsed_redirect_uri.scheme == "http"
+                    and parsed_redirect_uri.hostname in {"localhost", "127.0.0.1", "::1"}
+                )
+                assert is_allowed_loopback
+
             assert (
                 preflight_response.get("client_id")
                 == self._registration.get_client_id()
             )
 
-            self._redirect_url = preflight_response.get("redirect_uri")
+            self._redirect_url = redirect_uri
         except AssertionError as err:
             raise exceptions.PreflightRequestValidationException from err
 
