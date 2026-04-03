@@ -48,7 +48,8 @@ class MessageLaunchAbstract(ABC):
     - Resource: resource_link (content being launched)
     - Context: context (course/organization info)
     - Custom parameters: Custom data platform passes to tool
-    - Roles: User roles (e.g., 'http://purl.imsglobal.org/vocab/lis/v2/institution/person#Instructor')
+        - Roles: User roles (e.g.,
+            'http://purl.imsglobal.org/vocab/lis/v2/institution/person#Instructor')
     
     HTTPS Requirement:
     - All Platform/Tool URLs must use HTTPS for production
@@ -451,7 +452,8 @@ class MessageLaunchAbstract(ABC):
         - OIDC Implicit Flow: https://openid.net/specs/openid-connect-core-1_0.html#ImplicitFlow
         - OIDC Nonce: https://openid.net/specs/openid-connect-core-1_0.html#NonceNotes
         - OAuth 2.0 CSRF: https://tools.ietf.org/html/rfc6749#section-10.12
-        - LTI 1.3 Preflight Response Validation: https://www.imsglobal.org/spec/lti/v1p3/#authorization
+                - LTI 1.3 Preflight Response Validation:  # pylint: disable=line-too-long
+                    https://www.imsglobal.org/spec/lti/v1p3/#authorization
         
         Parameters:
             preflight_response: Dict with response parameters from authorization endpoint
@@ -462,8 +464,12 @@ class MessageLaunchAbstract(ABC):
         assert self._registration
 
         try:
-            assert preflight_response.get("response_type") == "id_token", "Invalid response type in preflight response"
-            assert preflight_response.get("scope") == "openid", "Invalid scope in preflight response"
+            assert (
+                preflight_response.get("response_type") == "id_token"
+            ), "Invalid response type in preflight response"
+            assert (
+                preflight_response.get("scope") == "openid"
+            ), "Invalid scope in preflight response"
             assert preflight_response.get("nonce")
             assert preflight_response.get("state")
             redirect_uri = preflight_response.get("redirect_uri")

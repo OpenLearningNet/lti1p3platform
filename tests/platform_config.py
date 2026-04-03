@@ -1,7 +1,8 @@
-from lti1p3platform.ltiplatform import LTI1P3PlatformConfAbstract
-from lti1p3platform.registration import Registration
 import time
 import typing as t
+
+from lti1p3platform.ltiplatform import LTI1P3PlatformConfAbstract
+from lti1p3platform.registration import Registration
 
 RSA_PUBLIC_KEY_PEM = """-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1du+3Vg1huBld4X7y8FS

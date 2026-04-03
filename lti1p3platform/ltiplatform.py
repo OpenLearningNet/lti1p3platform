@@ -46,37 +46,37 @@ class AccessTokenResponse(TypedDict):
 class LTI1P3PlatformConfAbstract(ABC):
     """
     LTI 1.3 Platform Data storage abstract class
-    
+
     This class implements the Learning Tools Interoperability (LTI) 1.3 specification,
     which defines a standards-based approach for educational tools to integrate with
     learning platforms (e.g., LMS systems).
-    
+
     LTI 1.3 Key Concepts:
     - Uses OAuth 2.0 authorization framework combined with OpenID Connect (OIDC)
     - Platform acts as the OAuth Authorization Server and OpenID Provider
     - Tool acts as the OAuth Client/Relying Party
     - Communication is secured via HTTPS and JWT (JSON Web Tokens)
-    
+
     Security Architecture:
     - Platform and Tool exchange cryptographic keys via JWK Sets (JSON Web Key Sets)
     - All messages are signed JWTs using RS256 (RSA with SHA-256)
     - Audience ('aud') claim validates the token is intended for specific recipient
     - Nonce and JTI (JWT ID) claims prevent token replay attacks
     - All URLs must use HTTPS for production (except localhost for development)
-    
+
     Key Flows:
     1. OIDC Login Initiation: Platform redirects user to tool's OIDC login endpoint
     2. Authorization: Tool routes back through platform's OIDC authorization endpoint
     3. Token Validation: Platform validates signed ID token from tool
     4. Message Launch: Platform sends signed LTI message with user/context claims
     5. Service Calls: Tool calls platform APIs (AGS, NRPS) with signed access tokens
-    
+
     References:
     - IMS LTI 1.3 Core: https://www.imsglobal.org/spec/lti/v1p3/
     - IMS Security Framework: https://www.imsglobal.org/spec/security/v1p0/
     - OpenID Connect Core: https://openid.net/specs/openid-connect-core-1_0.html
     """
-    
+
     _registration = None
     _accepted_deeplinking_types = LTI_DEEP_LINKING_ACCEPTED_TYPES
 
@@ -183,12 +183,12 @@ class LTI1P3PlatformConfAbstract(ABC):
     def get_jwks(self) -> JWKS:
         """
         Get JWKS (JSON Web Key Set) from the platform
-        
+
         The platform exposes its public keys via a JWK Set endpoint.
         Tools fetch these keys to validate signatures on messages from the platform.
-        
+
         LTI 1.3 Spec Reference: https://www.imsglobal.org/spec/lti/v1p3/#platform-jwks
-        
+
         Returns:
             JWKS: Dictionary with 'keys' list containing JWK objects
         """
@@ -199,35 +199,35 @@ class LTI1P3PlatformConfAbstract(ABC):
     def fetch_public_key(self, key_set_url: str) -> JWKS:
         """
         Fetch tool's public key set from the provided URL
-        
+
         Security Requirements (LTI 1.3 Spec & 1EdTech Security Framework):
         1. URL MUST use HTTPS (https:// scheme required)
            - Prevents man-in-the-middle attacks
            - TLS 1.2+ provides encryption and authentication
-        
+
         2. No Private IP Addresses:
            - Reject private/RFC 1918 IP ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)
            - Prevents Server-Side Request Forgery (SSRF) attacks on internal infrastructure
            - Reject loopback/localhost addresses (127.0.0.1, ::1)
            - Reject link-local addresses (169.254.x.x)
            - Reject reserved/multicast addresses
-        
+
         3. Hostname Validation:
            - Reject literal hostname 'localhost' (bypass check)
            - Accept only fully-qualified domain names in production
-        
+
         These restrictions prevent:
         - Attacks on internal services (databases, admin panels, cloud metadata endpoints)
         - Bypassing network security controls
-        
+
         LTI 1.3 References:
         - Transport security: https://www.imsglobal.org/spec/lti/v1p3/#securing_web_services
         - 1EdTech Security Framework: https://www.imsglobal.org/spec/security/v1p0/
-        
+
         Raises:
             InvalidKeySetUrl: If URL doesn't meet security requirements
             LtiException: If network request fails or response is invalid JSON
-        
+
         Returns:
             JWKS: The fetched JSON Web Key Set
         """
@@ -348,7 +348,7 @@ class LTI1P3PlatformConfAbstract(ABC):
     ) -> t.Dict[str, t.Any]:
         """
         Validate and decode a JWT token from the tool
-        
+
         LTI 1.3 JWT Validation Process:
         1. Format Validation: JWT must have 3 parts separated by dots (header.payload.signature)
         2. Signature Verification: Use tool's public key to validate the signature (RS256)
@@ -358,22 +358,23 @@ class LTI1P3PlatformConfAbstract(ABC):
         4. Additional claims verified by PyJWT:
            - 'exp' (expiration): Token must not be expired
            - 'iat' (issued at): Token must not be issued in the future (clock skew tolerance)
-        
+
         Why Audience Verification is Critical:
         - Without audience verification, tokens created for one recipient could be misused
         - Example attack: Token meant for Platform A used to access Platform B
         - Audience claim ties the token to a specific platform instance
-        
+
         OpenID Connect Spec Reference:
-        - ID Token validation: https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation
-        
+                - ID Token validation:
+                    https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation
+
         Parameters:
             jwt_token_string: The JWT token to validate (format: header.payload.signature)
             audience: The expected audience value from 'aud' claim
-        
+
         Returns:
             dict: Decoded JWT payload (claims)
-        
+
         Raises:
             LtiException: If JWT format is invalid
             jwt.InvalidAudienceError: If audience doesn't match
@@ -394,30 +395,31 @@ class LTI1P3PlatformConfAbstract(ABC):
     def _is_token_replay(self, jti: str, exp: int) -> bool:
         """
         Detect and prevent JWT token replay attacks using JTI (JWT ID)
-        
+
         Replay Attack Prevention Strategy:
         - Each JWT must include a 'jti' (JWT ID) claim - a unique identifier per token
         - Platform maintains an in-memory cache of all seen JTIs
         - If same JTI appears twice, it's a replay attack
         - Cache is cleaned of expired JTIs to prevent unbounded memory growth
-        
+
         Why JTI is Required (LTI 1.3 Spec):
         - Prevents attacker from replaying intercepted tokens
         - Example: Attacker intercepts token with jti='abc123', tries to replay it
         - Platform recognizes jti='abc123' already used, rejects the replay
-        
+
         Implementation Notes:
         - Expiration timestamp used for cache cleanup (best-effort)
         - Expired JTIs can be safely removed since they can't be valid anyway
         - Token signature validation + JTI check provides defense-in-depth
-        
+
         1EdTech Security Framework Reference:
-        - JWT Bearer Assertions: https://www.imsglobal.org/spec/security/v1p0/#making_authenticated_requests
-        
+                - JWT Bearer Assertions:
+                    https://www.imsglobal.org/spec/security/v1p0/#making_authenticated_requests
+
         Parameters:
             jti: The JWT ID claim value from the token
             exp: The expiration timestamp of the token (UNIX timestamp)
-        
+
         Returns:
             bool: True if this is a replay (JTI previously seen), False if unique (first time)
         """
@@ -430,36 +432,36 @@ class LTI1P3PlatformConfAbstract(ABC):
     def _is_nonce_replay(self, nonce: str, exp: int) -> bool:
         """
         Detect and prevent nonce replay attacks in deep linking responses
-        
+
         Nonce (Number Used Once) Security:
         - Platform generates a random nonce for each deep linking request
         - Tool includes this nonce in the deep linking response
         - Platform validates that the received nonce matches what it sent
         - This is a Cross-Site Request Forgery (CSRF) protection mechanism
-        
+
         Replay Attack Prevention:
         - Platform caches all nonces received from tools
         - If same nonce appears twice, it indicates a replay/reuse attempt
         - Cache is cleaned of expired nonces to prevent unbounded memory growth
         - Prevents attacker from reusing old deep linking messages
-        
+
         Flow Example:
         1. Platform generates nonce='xyz789' and sends to tool
         2. Tool includes nonce='xyz789' in deep linking response
         3. Platform caches nonce='xyz789' with expiration time
         4. If nonce='xyz789' appears again, it's rejected as replay
-        
+
         OpenID Connect Specification:
         - Nonce validation prevents authorization code/token replay attacks
         - See: https://openid.net/specs/openid-connect-core-1_0.html#NonceNotes
-        
+
         LTI Deep Linking Spec Reference:
         - Deep linking request/response: https://www.imsglobal.org/spec/lti-dl/v2p0/
-        
+
         Parameters:
             nonce: The nonce value from the deep linking response
             exp: The expiration timestamp of the response (UNIX timestamp)
-        
+
         Returns:
             bool: True if this is a replay (nonce previously seen), False if unique
         """
@@ -474,24 +476,25 @@ class LTI1P3PlatformConfAbstract(ABC):
     ) -> None:
         """
         Validate semantic correctness of tool's access token assertion (client credentials JWT)
-        
+
         LTI 1.3 Tool Access Token Request Flow (OAuth 2.0 Client Credentials Grant):
         1. Tool wants to call platform APIs (e.g., Grade Passback via AGS)
         2. Tool creates a JWT assertion signed with its private key
         3. Tool sends this assertion to platform's token endpoint
         4. Platform validates the assertion and returns an access_token
         5. Tool uses access_token to call platform APIs
-        
+
         JWT Assertion Requirements (1EdTech Security Framework):
         - client_assertion_type: Must be "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
         - Claims that must be present:
           * iss (issuer): Client ID - identifies the tool making the request
           * sub (subject): Client ID - same as iss (tool is resource owner)
-          * aud (audience): Token endpoint URL - tool asserts this token is for platform's token endpoint
+                    * aud (audience): Token endpoint URL - tool asserts this token is for
+                        platform's token endpoint
           * iat (issued at): Timestamp when token was created
           * exp (expiration): Timestamp when token expires
           * jti (JWT ID): Random unique identifier, prevents token replay attacks
-        
+
         Semantic Validation Rules:
         1. Required Claims Check: All 6 required claims must be present
         2. iss Must Equal Client ID: Ensures tool is who they claim to be
@@ -502,20 +505,20 @@ class LTI1P3PlatformConfAbstract(ABC):
            - iat must not be in future (within 60 second clock skew tolerance)
            - exp must not be in past (token must not be expired)
         6. JTI Uniqueness: No replay of same jti value (prevents token reuse)
-        
+
         Security Implications:
         - These checks ensure tool authentication, token intent, and prevent replay attacks
         - Without these, unauthorized tools could impersonate real tools
         - Without audience validation, tokens could be misused at wrong endpoints
-        
+
         1EdTech Security Framework Reference:
         - https://www.imsglobal.org/spec/security/v1p0/#securing_web_services
         - https://www.imsglobal.org/spec/security/v1p0/#token_request
-        
+
         Parameters:
             decoded_assertion: The decoded JWT payload with all claims
             expected_audience: The platform's token endpoint URL (should match aud claim)
-        
+
         Raises:
             MissingRequiredClaim: If required header/claim is missing
             LtiException: If any semantic validation fails (iss, sub, aud, timing, jti)
@@ -568,18 +571,19 @@ class LTI1P3PlatformConfAbstract(ABC):
     ) -> AccessTokenResponse:
         """
         Validate tool's token request and return JWT access token
-        
+
         OAuth 2.0 Client Credentials Grant with JWT Bearer Assertion:
         This endpoint implements the OAuth 2.0 Client Credentials Grant Type using
         JWT Bearer Assertions as per the 1EdTech Security Framework.
-        
+
         Request Flow:
         1. Tool sends POST to /token with:
            - grant_type = "client_credentials"
            - client_assertion = signed JWT (tool's credentials)
            - client_assertion_type = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
-           - scope = requested platform capabilities (e.g., "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly")
-        
+                     - scope = requested platform capabilities
+                         (e.g., "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly")
+
         2. Platform validates:
            - client_assertion_type is exactly the specified Bearer assertion type
            - client_assertion JWT has valid signature (signed by tool's private key)
@@ -587,38 +591,40 @@ class LTI1P3PlatformConfAbstract(ABC):
            - JWT claims are semantically correct (iss==client_id, aud includes token endpoint)
            - JWT hasn't been used before (jti not in cache)
            - JWT is not expired and not issued in future
-        
+
         3. Platform returns:
            - access_token: Signed JWT containing scope and other claims
            - token_type: "Bearer"
            - expires_in: seconds until token expires
            - scope: list of granted capabilities
-        
+
         Token Usage:
         - Tool includes access_token in Authorization header when calling platform APIs
         - Example: "Authorization: Bearer <access_token>"
         - Platform validates token signature and verifies requested scopes
-        
+
         Security Benefits:
         - JWT Bearer Assertions: No shared secrets, only public/private key pairs
         - Prevents unauthorized tools from requesting tokens
         - Nonce-like mechanism (jti) prevents token reuse/replay attacks
         - Signed tokens can be verified offline without hitting a database
-        
+
         Reference:
-        - 1EdTech Security Framework: https://www.imsglobal.org/spec/security/v1p0/#securing_web_services
+                - 1EdTech Security Framework:
+                    https://www.imsglobal.org/spec/security/v1p0/#securing_web_services
         - LTI Advantage Services (AGS spec): https://www.imsglobal.org/spec/lti-ags/v2p0/
-        
+
         Parameters:
             token_request_data: Dict of form parameters:
                 - grant_type: Must be "client_credentials"
                 - client_assertion: Signed JWT from tool
-                - client_assertion_type: Must be "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
+                                - client_assertion_type: Must be
+                                    "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
                 - scope: Space-separated list of requested scopes
 
         Returns:
             AccessTokenResponse: Dictionary with 'access_token', 'expires_in', 'token_type', 'scope'
-        
+
         Raises:
             UnsupportedGrantType: If grant_type is not client_credentials
             LtiException: Various validation failures (see _validate_tool_access_token_assertion)

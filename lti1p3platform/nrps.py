@@ -211,7 +211,8 @@ class LtiNrps:
             dict: The namesroleservice claim to inject into LTI launch message
         
         Reference:
-        - Context Membership Service: https://www.imsglobal.org/spec/lti-nrps/v2p0/#context-memberships-service
+                - Context Membership Service:  # pylint: disable=line-too-long
+                    https://www.imsglobal.org/spec/lti-nrps/v2p0/#context-memberships-service
         """
 
         return {
