@@ -1,5 +1,7 @@
 from lti1p3platform.ltiplatform import LTI1P3PlatformConfAbstract
 from lti1p3platform.registration import Registration
+import time
+import typing as t
 
 RSA_PUBLIC_KEY_PEM = """-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1du+3Vg1huBld4X7y8FS
@@ -94,10 +96,30 @@ PLATFORM_CONFIG = {
 }
 
 
-class TestPlatform(LTI1P3PlatformConfAbstract):
+class PlatformConf(LTI1P3PlatformConfAbstract):
     """
-    Test platform configuration
+    Test platform configuration.
+
+    Cache backend: simple in-memory dict for unit test use only.
+    Not suitable for production (not shared across processes).
     """
+
+    def __init__(self, **kwargs: t.Any) -> None:
+        # In-memory cache: key -> expiration timestamp
+        self._cache: t.Dict[str, int] = {}
+        super().__init__(**kwargs)
+
+    def cache_get(self, key: str) -> t.Optional[int]:
+        """Return stored expiry, or None if absent/expired."""
+        exp = self._cache.get(key)
+        if exp is None or exp < int(time.time()):
+            self._cache.pop(key, None)
+            return None
+        return exp
+
+    def cache_set(self, key: str, exp: int) -> None:
+        """Store entry; will be evicted lazily on next cache_get."""
+        self._cache[key] = exp
 
     def init_platform_config(self, **kwargs) -> None:
         self._registration = (

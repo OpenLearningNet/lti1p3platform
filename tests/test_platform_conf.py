@@ -4,14 +4,14 @@ import uuid
 from lti1p3platform.registration import Registration
 from lti1p3platform.jwt_helper import jwt_encode
 
-from .platform_config import TestPlatform, TOOL_PRIVATE_KEY_PEM, PLATFORM_CONFIG
+from .platform_config import PlatformConf, TOOL_PRIVATE_KEY_PEM, PLATFORM_CONFIG
 
 
 def test_get_jwks():
     """
     Test get jwks
     """
-    test_platform = TestPlatform()
+    test_platform = PlatformConf()
     jwks = test_platform.get_jwks()
 
     expected_jwks = {
@@ -34,7 +34,7 @@ def test_get_access_tokens():
     """
     test get access token
     """
-    test_platform = TestPlatform()
+    test_platform = PlatformConf()
 
     jwt_claims = {
         "iss": PLATFORM_CONFIG["client_id"],

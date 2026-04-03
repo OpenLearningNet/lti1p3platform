@@ -82,18 +82,78 @@ class LTI1P3PlatformConfAbstract(ABC):
 
     def __init__(self, **kwargs: t.Any) -> None:
         self._jwt: t.Dict[str, t.Any] = {}
-        # Cache for tracking used JTI (JWT ID) values to prevent token replay attacks
-        # Maps JTI -> expiration timestamp (used for cleanup of expired entries)
-        self._used_tool_jtis: t.Dict[str, int] = {}
-        # Cache for tracking used nonce values to prevent token replay attacks
-        # Maps nonce -> expiration timestamp (used for cleanup of expired entries)
-        self._used_tool_nonces: t.Dict[str, int] = {}
 
         self.init_platform_config(**kwargs)
 
     @abstractmethod
     def init_platform_config(self, **kwargs: t.Any) -> t.Any:
         pass
+
+    @abstractmethod
+    def cache_get(self, key: str) -> t.Optional[int]:
+        """
+        Retrieve a replay-detection entry from the cache.
+
+        Keying convention:
+        - JTI replay checks use key  ``"jti:<jti_value>"``
+        - Nonce replay checks use key ``"nonce:<nonce_value>"``
+
+        Returns:
+            The stored expiration timestamp (UNIX seconds) if the entry
+            exists and has not yet expired, or ``None`` otherwise.
+
+        Production implementations:
+
+        **Redis**::
+
+            def cache_get(self, key):
+                val = redis_client.get(key)
+                return int(val) if val is not None else None
+
+        **Django cache**::
+
+            def cache_get(self, key):
+                return cache.get(key)
+
+        **Memcached**::
+
+            def cache_get(self, key):
+                return mc.get(key)
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def cache_set(self, key: str, exp: int) -> None:
+        """
+        Store a replay-detection entry in the cache.
+
+        Parameters:
+            key: Namespaced cache key (e.g. ``"jti:abc123"`` or ``"nonce:xyz789"``).
+            exp: UNIX timestamp at which the associated token/nonce expires.
+                 Implementations should derive the TTL from this value so
+                 entries are evicted automatically.
+
+        Production implementations:
+
+        **Redis**::
+
+            def cache_set(self, key, exp):
+                ttl = max(1, exp - int(time.time()))
+                redis_client.set(key, exp, ex=ttl)
+
+        **Django cache**::
+
+            def cache_set(self, key, exp):
+                ttl = max(1, exp - int(time.time()))
+                cache.set(key, exp, timeout=ttl)
+
+        **Memcached**::
+
+            def cache_set(self, key, exp):
+                ttl = max(1, exp - int(time.time()))
+                mc.set(key, exp, time=ttl)
+        """
+        raise NotImplementedError()
 
     @abstractmethod
     def get_registration_by_params(
@@ -361,17 +421,10 @@ class LTI1P3PlatformConfAbstract(ABC):
         Returns:
             bool: True if this is a replay (JTI previously seen), False if unique (first time)
         """
-        now = int(time.time())
-
-        # Best-effort cleanup of expired JTIs.
-        expired_jtis = [key for key, expires in self._used_tool_jtis.items() if expires < now]
-        for key in expired_jtis:
-            del self._used_tool_jtis[key]
-
-        if jti in self._used_tool_jtis:
+        cache_key = f"jti:{jti}"
+        if self.cache_get(cache_key) is not None:
             return True
-
-        self._used_tool_jtis[jti] = exp
+        self.cache_set(cache_key, exp)
         return False
 
     def _is_nonce_replay(self, nonce: str, exp: int) -> bool:
@@ -410,18 +463,10 @@ class LTI1P3PlatformConfAbstract(ABC):
         Returns:
             bool: True if this is a replay (nonce previously seen), False if unique
         """
-        now = int(time.time())
-
-        expired_nonces = [
-            key for key, expires in self._used_tool_nonces.items() if expires < now
-        ]
-        for key in expired_nonces:
-            del self._used_tool_nonces[key]
-
-        if nonce in self._used_tool_nonces:
+        cache_key = f"nonce:{nonce}"
+        if self.cache_get(cache_key) is not None:
             return True
-
-        self._used_tool_nonces[nonce] = exp
+        self.cache_set(cache_key, exp)
         return False
 
     def _validate_tool_access_token_assertion(
