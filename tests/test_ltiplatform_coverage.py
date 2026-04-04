@@ -121,7 +121,7 @@ def _make_valid_assertion(jti=None, extra=None):
     return _make_tool_jwt(claims)
 
 
-def _make_deeplink_jwt(extra_claims=None):
+def _make_deeplink_jwt(extra_claims=None, nonce=None):
     """Return a valid deep-link response JWT signed by the tool."""
     claims = {
         "iss": "https://tool.example.com",
@@ -129,13 +129,18 @@ def _make_deeplink_jwt(extra_claims=None):
         "aud": PLATFORM_CONFIG["iss"],
         "iat": int(time.time()) - 5,
         "exp": int(time.time()) + 60,
-        "nonce": str(uuid.uuid4()),
+        "nonce": nonce if nonce is not None else str(uuid.uuid4()),
         "https://purl.imsglobal.org/spec/lti/claim/message_type": "LtiDeepLinkingResponse",
         "https://purl.imsglobal.org/spec/lti-dl/claim/content_items": [],
     }
     if extra_claims:
         claims.update(extra_claims)
     return _make_tool_jwt(claims)
+
+
+def _register_sent_nonce(platform, nonce: str, ttl: int = 300) -> None:
+    """Simulate the platform having sent this nonce in a deep-link request."""
+    platform.cache_set(f"sent_nonce:{nonce}", int(time.time()) + ttl)
 
 
 # ---------------------------------------------------------------------------
@@ -592,18 +597,23 @@ def test_get_access_token_unsupported_scope_returns_empty():
 
 def test_validate_deeplinking_resp_empty_content_items():
     platform = PlatformConf()
-    token = _make_deeplink_jwt()
+    nonce = str(uuid.uuid4())
+    _register_sent_nonce(platform, nonce)
+    token = _make_deeplink_jwt(nonce=nonce)
     result = platform.validate_deeplinking_resp({"JWT": token})
     assert result == []
 
 
 def test_validate_deeplinking_resp_with_link_items():
     platform = PlatformConf()
+    nonce = str(uuid.uuid4())
+    _register_sent_nonce(platform, nonce)
     items = [{"type": "ltiResourceLink", "url": "https://tool.example.com/resource"}]
     token = _make_deeplink_jwt(
+        nonce=nonce,
         extra_claims={
             "https://purl.imsglobal.org/spec/lti-dl/claim/content_items": items
-        }
+        },
     )
     result = platform.validate_deeplinking_resp({"JWT": token})
     assert len(result) == 1
@@ -633,6 +643,8 @@ def test_validate_deeplinking_resp_missing_nonce_raises():
 def test_validate_deeplinking_resp_missing_exp_raises():
     """Token without exp claim should raise LtiDeepLinkingResponseException."""
     platform = PlatformConf()
+    nonce = str(uuid.uuid4())
+    _register_sent_nonce(platform, nonce)
     jwk = _Registration.get_jwk(TOOL_PRIVATE_KEY_PEM)
     claims = {
         "iss": "https://tool.example.com",
@@ -640,7 +652,7 @@ def test_validate_deeplinking_resp_missing_exp_raises():
         "aud": PLATFORM_CONFIG["iss"],
         "iat": int(time.time()) - 5,
         # No "exp" claim
-        "nonce": str(uuid.uuid4()),
+        "nonce": nonce,
         "https://purl.imsglobal.org/spec/lti/claim/message_type": "LtiDeepLinkingResponse",
         "https://purl.imsglobal.org/spec/lti-dl/claim/content_items": [],
     }
@@ -654,21 +666,25 @@ def test_validate_deeplinking_resp_missing_exp_raises():
 def test_validate_deeplinking_resp_nonce_replay_raises():
     platform = PlatformConf()
     nonce = str(uuid.uuid4())
+    _register_sent_nonce(platform, nonce)
     # First request succeeds
-    token1 = _make_deeplink_jwt(extra_claims={"nonce": nonce})
+    token1 = _make_deeplink_jwt(nonce=nonce)
     platform.validate_deeplinking_resp({"JWT": token1})
     # Second request with same nonce must be rejected
-    token2 = _make_deeplink_jwt(extra_claims={"nonce": nonce})
+    token2 = _make_deeplink_jwt(nonce=nonce)
     with pytest.raises(LtiDeepLinkingResponseException, match="Replay detected"):
         platform.validate_deeplinking_resp({"JWT": token2})
 
 
 def test_validate_deeplinking_resp_wrong_message_type_raises():
     platform = PlatformConf()
+    nonce = str(uuid.uuid4())
+    _register_sent_nonce(platform, nonce)
     token = _make_deeplink_jwt(
+        nonce=nonce,
         extra_claims={
             "https://purl.imsglobal.org/spec/lti/claim/message_type": "LtiResourceLinkRequest"
-        }
+        },
     )
     with pytest.raises(LtiDeepLinkingResponseException, match="Deep Linking Response"):
         platform.validate_deeplinking_resp({"JWT": token})
@@ -676,14 +692,28 @@ def test_validate_deeplinking_resp_wrong_message_type_raises():
 
 def test_validate_deeplinking_resp_unsupported_content_type_raises():
     platform = PlatformConf()
+    nonce = str(uuid.uuid4())
+    _register_sent_nonce(platform, nonce)
     token = _make_deeplink_jwt(
+        nonce=nonce,
         extra_claims={
             "https://purl.imsglobal.org/spec/lti-dl/claim/content_items": [
                 {"type": "unsupported_content_type"}
             ]
-        }
+        },
     )
     with pytest.raises(LtiDeepLinkingResponseException, match="not supported"):
+        platform.validate_deeplinking_resp({"JWT": token})
+
+
+def test_validate_deeplinking_resp_unknown_nonce_raises():
+    """Nonce not previously sent by the platform must be rejected (OIDC §3.1.3.7)."""
+    platform = PlatformConf()
+    # Nonce is NOT registered as sent — simulates a forged / replayed response
+    token = _make_deeplink_jwt()
+    with pytest.raises(
+        LtiDeepLinkingResponseException, match="not issued by this platform"
+    ):
         platform.validate_deeplinking_resp({"JWT": token})
 
 

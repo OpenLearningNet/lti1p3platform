@@ -715,6 +715,14 @@ class LTI1P3PlatformConfAbstract(ABC):
         if not nonce:
             raise LtiDeepLinkingResponseException("Token nonce is missing")
 
+        # OIDC Core Section 3.1.3.7(11): the nonce in the response MUST equal the
+        # value that was sent in the authentication request.  Reject any nonce we
+        # did not originate to prevent token-substitution / replay attacks.
+        if self.cache_get(f"sent_nonce:{str(nonce)}") is None:
+            raise LtiDeepLinkingResponseException(
+                "Nonce was not issued by this platform"
+            )
+
         exp = deep_link_response.get("exp")
         if not exp:
             raise LtiDeepLinkingResponseException("Token exp is missing")
