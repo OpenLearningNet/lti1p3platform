@@ -59,19 +59,19 @@ def jwt_encode(
 ) -> str:
     """
     Encode a JWT token with the given payload and key
-    
+
     PyJWT Wrapper: Handles compatibility between PyJWT versions
     - PyJWT 2.0.0+: Returns string (UTF-8 encoded)
     - PyJWT < 2.0.0: Returns bytes
     - This function always returns a string for consistency
-    
+
     LTI 1.3 JWT Encoding Process:
     1. Create payload dict with all necessary claims
     2. Call this function with payload and platform's private key
     3. PyJWT creates signature using RS256 algorithm
     4. Returns signed JWT string (three dot-separated base64url-encoded parts)
     5. Platform sends this JWT to tool (usually as parameter in redirect)
-    
+
     JWT Payload Example (LTI Launch Message):
     {
         "iss": "https://platform.trucut.com",
@@ -84,7 +84,7 @@ def jwt_encode(
         "https://purl.imsglobal.org/spec/lti/claim/user_id": "user-123",
         ...
     }
-    
+
     Parameters:
         payload: Dictionary of claims to include in JWT
         key: Private key in PEM format (string)
@@ -94,10 +94,10 @@ def jwt_encode(
                   - LTI 1.3 uses RS256 for security
         headers: Additional JWT headers (e.g., key ID 'kid' for key rotation)
         json_encoder: Custom JSON encoder if needed
-    
+
     Returns:
         str: The encoded JWT token (three dot-separated parts)
-    
+
     Example Use:
     >>> payload = {
     ...     "iss": "https://platform.com",
@@ -108,7 +108,7 @@ def jwt_encode(
     ... }
     >>> token = jwt_encode(payload, private_key_pem, "RS256")
     >>> # token = "eyJ0eXAiOiJKV1QiLCJhbGc..."
-    
+
     Reference:
     - JWT Format: https://tools.ietf.org/html/rfc7519#section-3
     - RS256 Algorithm: https://tools.ietf.org/html/rfc7518#section-3.3

@@ -53,35 +53,35 @@ import typing as t
 class LtiNrps:
     """
     LTI 1.3 Advantage Services - Names and Role Provisioning Service Configuration
-    
+
     NRPS (Names and Role Provisioning Service) Overview:
     ====================================================
-    
+
     Purpose:
     - Enables tools to query course membership information from the platform
     - Alternative to separate directory integrations (LDAP, AD, etc.)
     - Dynamically fetches roster without pre-synced data
-    
+
     Context Membership Service:
     - Provides list of users enrolled in a course/context
     - Includes user identifiers and role information
     - Supports pagination for large courses (thousands of students)
-    
+
     Platform Role Examples:
     - http://purl.imsglobal.org/vocab/lis/v2/institution/person#Instructor
     - http://purl.imsglobal.org/vocab/lis/v2/institution/person#Student
     - http://purl.imsglobal.org/vocab/lis/v2/institution/person#Learner
     - http://purl.imsglobal.org/vocab/lis/v2/membership#Administrator
-    
+
     Tool Security Considerations:
     - Cache data locally if possible (reduce API calls)
     - Respect privacy settings and role filtering
     - Use appropriate scopes
     - Handle pagination for large courses
     - Handle errors gracefully if roster API unavailable
-    
+
     This class configures NRPS access for a tool integration.
-    
+
     Reference: https://www.imsglobal.org/spec/lti-nrps/v2p0/
     """
 
@@ -91,7 +91,7 @@ class LtiNrps:
     ):
         """
         Initialize NRPS configuration for a tool integration
-        
+
         Parameters:
             context_memberships_url: Platform's API endpoint for roster/memberships
                 - Format: "https://platform.edu/lti/nrps/memberships"
@@ -104,36 +104,36 @@ class LtiNrps:
     def get_available_scopes(self) -> t.List[str]:
         """
         Retrieves list of available OAuth 2.0 scopes for NRPS
-        
+
         OAuth 2.0 Scopes for NRPS:
-        
+
         - https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly
           * Access permission for Context Membership Service
           * Read-only: can only fetch roster data
           * Cannot modify/delete members (NRPS is read-only)
           * Included in access_token if enabled
-        
+
         Scope Usage:
         - Platform includes this scope in access_token if NRPS enabled for tool
         - Tool includes this scope in token request when calling APIs
         - Platform validates token has required scope before returning roster
-        
+
         No 'write' Scope:
         - NRPS is intentionally read-only
         - Tools cannot add/remove/modify course members via NRPS
         - Member management handled through platform UI
         - Prevents accidental/malicious roster changes from tools
-        
+
         Typical Scope in Access Token (JWT):
         {
             "scope": "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem
                       https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly",
             ...
         }
-        
+
         Returns:
             List containing the NRPS contextmembership.readonly scope URI
-        
+
         Reference:
         - Scope specification: https://www.imsglobal.org/spec/lti-nrps/v2p0/#scopes
         """
@@ -145,10 +145,10 @@ class LtiNrps:
     def get_lti_nrps_launch_claim(self) -> t.Dict[str, t.Any]:
         """
         Generate NRPS Launch Claim for LTI message
-        
+
         This claim is included in the LTI launch message to tell the tool
         where to call to fetch the course roster (member list).
-        
+
         Claim Structure:
         {
             "https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice": {
@@ -156,18 +156,18 @@ class LtiNrps:
                 "service_versions": ["2.0"]
             }
         }
-        
+
         Usage:
         1. Tool receives launch message with NRPS claim
         2. Tool extracts context_memberships_url from claim
         3. Tool calls API: GET context_memberships_url?context_id=<course>
         4. Platform returns JSON list of members with roles
         5. Tool processes roster data for its features
-        
+
         API Call Example:
         GET /lti/nrps/memberships?context_id=course-123&limit=50&offset=0
         With Authorization: Bearer <access_token>
-        
+
         API Response Example:
         {
             "context": {
@@ -200,16 +200,16 @@ class LtiNrps:
             "pageSize": 50,
             "pageCount": 1
         }
-        
+
         Pagination:
         - pageNumber: Current page (1-indexed)
         - pageSize: Number of members per page
         - pageCount: Total number of pages
         - Control pagination via ?limit=50&offset=0 parameters
-        
+
         Returns:
             dict: The namesroleservice claim to inject into LTI launch message
-        
+
         Reference:
                 - Context Membership Service:  # pylint: disable=line-too-long
                     https://www.imsglobal.org/spec/lti-nrps/v2p0/#context-memberships-service

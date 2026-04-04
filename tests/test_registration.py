@@ -6,8 +6,6 @@ encode_and_sign, decode_and_verify, and platform_encode_and_sign.
 """
 import time
 
-import pytest
-
 from lti1p3platform.registration import Registration
 
 from .platform_config import (
@@ -130,9 +128,7 @@ def test_encode_and_sign_without_expiration():
     """encode_and_sign without expiration should not add iat/exp."""
     payload = {"sub": "user-1", "iss": "https://platform.example.com"}
     token = Registration.encode_and_sign(payload, RSA_PRIVATE_KEY_PEM)
-    decoded = Registration.decode_and_verify(
-        token, RSA_PUBLIC_KEY_PEM, audience=None
-    )
+    decoded = Registration.decode_and_verify(token, RSA_PUBLIC_KEY_PEM, audience=None)
     assert decoded["sub"] == "user-1"
     assert "exp" not in decoded
 
@@ -140,9 +136,7 @@ def test_encode_and_sign_without_expiration():
 def test_encode_and_sign_with_expiration():
     payload = {"sub": "user-1", "iss": "https://platform.example.com"}
     token = Registration.encode_and_sign(payload, RSA_PRIVATE_KEY_PEM, expiration=3600)
-    decoded = Registration.decode_and_verify(
-        token, RSA_PUBLIC_KEY_PEM, audience=None
-    )
+    decoded = Registration.decode_and_verify(token, RSA_PUBLIC_KEY_PEM, audience=None)
     assert decoded["sub"] == "user-1"
     assert "exp" in decoded
     assert decoded["exp"] > int(time.time())

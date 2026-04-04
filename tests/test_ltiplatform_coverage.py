@@ -13,14 +13,18 @@ Covers:
 - validate_deeplinking_resp (all paths)
 - validate_token
 """
+# pylint: disable=protected-access
 import time
+import typing as t
 import uuid
 from unittest.mock import patch, MagicMock
 
 import pytest
+import requests
 
-from lti1p3platform.registration import Registration
 from lti1p3platform.jwt_helper import jwt_encode
+from lti1p3platform.ltiplatform import LTI1P3PlatformConfAbstract
+from lti1p3platform.registration import Registration as _Registration
 from lti1p3platform.exceptions import (
     InvalidKeySetUrl,
     LtiException,
@@ -35,71 +39,12 @@ from .platform_config import (
     TOOL_KEY_SET,
     PLATFORM_CONFIG,
     RSA_PRIVATE_KEY_PEM,
+    RSA_PUBLIC_KEY_PEM,
 )
 
-    # ---------------------------------------------------------------------------
-    # Minimal platform variant helpers for edge-case coverage
-    # ---------------------------------------------------------------------------
-
-import typing as t
-from lti1p3platform.ltiplatform import LTI1P3PlatformConfAbstract
-from lti1p3platform.registration import Registration as _Registration
-from tests.platform_config import (  # noqa: F401  (used below)
-    RSA_PUBLIC_KEY_PEM as _PUB,
-    RSA_PRIVATE_KEY_PEM as _PRIV,
-    TOOL_KEY_SET as _TKS,
-)
-
-
-class _NullRegistrationPlatform(LTI1P3PlatformConfAbstract):
-    """Platform whose _registration is initially None; returned by get_registration_by_params."""
-
-    def __init__(self) -> None:
-        self._cache: t.Dict[str, int] = {}
-        super().__init__()
-
-    def cache_get(self, key: str) -> t.Optional[int]:
-        return self._cache.get(key)
-
-    def cache_set(self, key: str, exp: int) -> None:
-        self._cache[key] = exp
-
-    def init_platform_config(self, **kwargs: t.Any) -> None:
-        pass  # _registration stays None
-
-    def get_registration_by_params(self, **kwargs: t.Any) -> _Registration:
-        reg = (
-            _Registration()
-            .set_iss(PLATFORM_CONFIG["iss"])
-            .set_client_id(PLATFORM_CONFIG["client_id"])
-            .set_access_token_url(PLATFORM_CONFIG["access_token_url"])
-            .set_platform_public_key(_PUB)
-            .set_platform_private_key(_PRIV)
-            .set_tool_key_set(_TKS)
-        )
-        return reg
-
-
-class _NoClientIdPlatform(PlatformConf):
-    """Platform with no client_id in registration (triggers line 537 in ltiplatform.py)."""
-
-    def init_platform_config(self, **kwargs: t.Any) -> None:
-        super().init_platform_config(**kwargs)
-        self._registration.set_client_id(None)  # type: ignore[arg-type]
-
-
-class _NoAudiencePlatform(PlatformConf):
-    """Platform with no access_token_url (triggers line 658 in ltiplatform.py)."""
-
-    def init_platform_config(self, **kwargs: t.Any) -> None:
-        super().init_platform_config(**kwargs)
-        self._registration.set_access_token_url(None)  # type: ignore[arg-type]
-
-import typing as t
-
-from lti1p3platform.ltiplatform import LTI1P3PlatformConfAbstract
-from lti1p3platform.registration import Registration as _Registration
-from .platform_config import RSA_PUBLIC_KEY_PEM as _PUB  # noqa: F401
+# ---------------------------------------------------------------------------
+# Minimal platform variant helpers for edge-case coverage
+# ---------------------------------------------------------------------------
 
 
 class _NullRegistrationPlatform(LTI1P3PlatformConfAbstract):
@@ -124,7 +69,7 @@ class _NullRegistrationPlatform(LTI1P3PlatformConfAbstract):
             .set_iss(PLATFORM_CONFIG["iss"])
             .set_client_id(PLATFORM_CONFIG["client_id"])
             .set_access_token_url(PLATFORM_CONFIG["access_token_url"])
-            .set_platform_public_key(_PUB)
+            .set_platform_public_key(RSA_PUBLIC_KEY_PEM)
             .set_platform_private_key(RSA_PRIVATE_KEY_PEM)
             .set_tool_key_set(TOOL_KEY_SET)
         )
@@ -150,12 +95,13 @@ class _NoAudiencePlatform(PlatformConf):
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_tool_jwt(claims, private_key=None, headers=None):
     """Return a JWT signed with the tool's private key."""
     if private_key is None:
         private_key = TOOL_PRIVATE_KEY_PEM
     if headers is None:
-        jwk = Registration.get_jwk(TOOL_PRIVATE_KEY_PEM)
+        jwk = _Registration.get_jwk(TOOL_PRIVATE_KEY_PEM)
         headers = {"kid": jwk.get("kid")}
     return jwt_encode(claims, private_key, algorithm="RS256", headers=headers)
 
@@ -196,6 +142,7 @@ def _make_deeplink_jwt(extra_claims=None):
 # set_accepted_deeplinking_types
 # ---------------------------------------------------------------------------
 
+
 def test_set_accepted_types_filters_valid():
     platform = PlatformConf()
     platform.set_accepted_deeplinking_types(["ltiResourceLink", "link"])
@@ -219,6 +166,7 @@ def test_set_accepted_types_empty_list():
 # ---------------------------------------------------------------------------
 # fetch_public_key – security validation
 # ---------------------------------------------------------------------------
+
 
 def test_fetch_public_key_http_raises():
     platform = PlatformConf()
@@ -266,11 +214,10 @@ def test_fetch_public_key_valid_url_returns_jwks():
 
 
 def test_fetch_public_key_request_error_raises():
-    import requests as req
     platform = PlatformConf()
     with patch(
         "lti1p3platform.ltiplatform.requests.get",
-        side_effect=req.exceptions.ConnectionError("network failure"),
+        side_effect=requests.exceptions.ConnectionError("network failure"),
     ):
         with pytest.raises(LtiException):
             platform.fetch_public_key("https://example.com/jwks")
@@ -289,6 +236,7 @@ def test_fetch_public_key_invalid_json_raises():
 # ---------------------------------------------------------------------------
 # get_tool_key_set – non-HTTPS URL
 # ---------------------------------------------------------------------------
+
 
 def test_get_tool_key_set_non_https_url_raises():
     platform = PlatformConf()
@@ -317,6 +265,7 @@ def test_get_tool_key_set_https_url_returns_and_caches():
 # validate_jwt_format – error paths
 # ---------------------------------------------------------------------------
 
+
 def test_validate_jwt_format_wrong_parts():
     platform = PlatformConf()
     with pytest.raises(LtiException, match="JWT must contain 3 parts"):
@@ -332,6 +281,7 @@ def test_validate_jwt_format_invalid_base64():
 # ---------------------------------------------------------------------------
 # get_tool_public_key – error paths
 # ---------------------------------------------------------------------------
+
 
 def test_get_tool_public_key_no_kid_raises():
     platform = PlatformConf()
@@ -350,7 +300,7 @@ def test_get_tool_public_key_no_kid_raises():
 
 def test_get_tool_public_key_no_alg_raises():
     platform = PlatformConf()
-    jwk = Registration.get_jwk(TOOL_PRIVATE_KEY_PEM)
+    jwk = _Registration.get_jwk(TOOL_PRIVATE_KEY_PEM)
     claims = {
         "iss": "tool",
         "aud": "platform",
@@ -368,7 +318,7 @@ def test_get_tool_public_key_no_alg_raises():
 
 def test_get_tool_public_key_kid_not_found_raises():
     platform = PlatformConf()
-    jwk = Registration.get_jwk(TOOL_PRIVATE_KEY_PEM)
+    jwk = _Registration.get_jwk(TOOL_PRIVATE_KEY_PEM)
     claims = {
         "iss": "tool",
         "aud": "platform",
@@ -387,6 +337,7 @@ def test_get_tool_public_key_kid_not_found_raises():
 # ---------------------------------------------------------------------------
 # _is_token_replay / _is_nonce_replay
 # ---------------------------------------------------------------------------
+
 
 def test_token_replay_first_use_returns_false():
     platform = PlatformConf()
@@ -417,6 +368,7 @@ def test_nonce_replay_second_use_returns_true():
 # ---------------------------------------------------------------------------
 # _validate_tool_access_token_assertion – error paths
 # ---------------------------------------------------------------------------
+
 
 def test_assertion_missing_jti_raises():
     platform = PlatformConf()
@@ -573,6 +525,7 @@ def test_assertion_jti_replay_raises():
 # get_access_token – error paths
 # ---------------------------------------------------------------------------
 
+
 def test_get_access_token_missing_claim_raises():
     platform = PlatformConf()
     with pytest.raises(MissingRequiredClaim):
@@ -636,6 +589,7 @@ def test_get_access_token_unsupported_scope_returns_empty():
 # validate_deeplinking_resp
 # ---------------------------------------------------------------------------
 
+
 def test_validate_deeplinking_resp_empty_content_items():
     platform = PlatformConf()
     token = _make_deeplink_jwt()
@@ -658,7 +612,7 @@ def test_validate_deeplinking_resp_with_link_items():
 
 def test_validate_deeplinking_resp_missing_nonce_raises():
     platform = PlatformConf()
-    jwk = Registration.get_jwk(TOOL_PRIVATE_KEY_PEM)
+    jwk = _Registration.get_jwk(TOOL_PRIVATE_KEY_PEM)
     claims = {
         "iss": "https://tool.example.com",
         "sub": PLATFORM_CONFIG["client_id"],
@@ -679,7 +633,7 @@ def test_validate_deeplinking_resp_missing_nonce_raises():
 def test_validate_deeplinking_resp_missing_exp_raises():
     """Token without exp claim should raise LtiDeepLinkingResponseException."""
     platform = PlatformConf()
-    jwk = Registration.get_jwk(TOOL_PRIVATE_KEY_PEM)
+    jwk = _Registration.get_jwk(TOOL_PRIVATE_KEY_PEM)
     claims = {
         "iss": "https://tool.example.com",
         "sub": PLATFORM_CONFIG["client_id"],
@@ -741,6 +695,7 @@ def test_validate_deeplinking_resp_unsupported_content_type_raises():
 # get_registration – _registration initially None path (lines 178-181)
 # ---------------------------------------------------------------------------
 
+
 def test_get_registration_lazy_loads_when_none():
     platform = _NullRegistrationPlatform()
     # _registration is None initially
@@ -754,6 +709,7 @@ def test_get_registration_lazy_loads_when_none():
 # ---------------------------------------------------------------------------
 # _validate_tool_access_token_assertion – no client_id (line 537)
 # ---------------------------------------------------------------------------
+
 
 def test_assertion_no_client_id_raises():
     platform = _NoClientIdPlatform()
@@ -775,6 +731,7 @@ def test_assertion_no_client_id_raises():
 # get_access_token – no expected audience (line 658)
 # ---------------------------------------------------------------------------
 
+
 def test_get_access_token_no_audience_raises():
     platform = _NoAudiencePlatform()
     encoded_jwt = _make_valid_assertion()
@@ -789,6 +746,7 @@ def test_get_access_token_no_audience_raises():
                 "scope": "",
             }
         )
+
 
 def _make_platform_token(extra_claims=None):
     """Return a JWT signed by the platform's private key."""
@@ -812,25 +770,31 @@ def test_validate_token_valid_returns_true():
 def test_validate_token_matching_scope_returns_true():
     platform = PlatformConf()
     token = _make_platform_token()
-    assert platform.validate_token(
-        token,
-        allowed_scopes=["https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"],
-    ) is True
+    assert (
+        platform.validate_token(
+            token,
+            allowed_scopes=["https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"],
+        )
+        is True
+    )
 
 
 def test_validate_token_non_matching_scope_returns_false():
     platform = PlatformConf()
     token = _make_platform_token()
-    assert platform.validate_token(
-        token,
-        allowed_scopes=["https://purl.imsglobal.org/spec/lti-ags/scope/score"],
-    ) is False
+    assert (
+        platform.validate_token(
+            token,
+            allowed_scopes=["https://purl.imsglobal.org/spec/lti-ags/scope/score"],
+        )
+        is False
+    )
 
 
 def test_validate_token_invalid_iss_raises():
     """Token signed by platform key but with wrong iss should raise."""
     platform = PlatformConf()
-    token = Registration.encode_and_sign(
+    token = _Registration.encode_and_sign(
         {
             "sub": PLATFORM_CONFIG["client_id"],
             "iss": "https://wrong-issuer.example/",

@@ -27,21 +27,21 @@ class LaunchData(TypedDict):
 class MessageLaunchAbstract(ABC):
     """
     Abstract base class for LTI 1.3 Message Launch handling
-    
+
     LTI 1.3 Launch Process (simplified):
     1. User clicks "launch tool" in platform
     2. Platform creates LTI message with user/content context (JWT)
     3. Platform sends POST with id_token + state to tool's launch_url
     4. Tool validates JWT signature and claims
     5. Tool displays interface with user's context
-    
+
     This class handles:
     - Receiving and parsing launch requests
     - Validating JWT signatures and claims
     - Extracting LTI claims (user roles, resource context, etc.)
     - Building response data
     - Interfacing with LTI Advantage services (AGS, NRPS)
-    
+
     Message Contents:
     The id_token JWT contains many claims about the launch context:
     - User identity: sub (subject/user ID), email, name, roles
@@ -50,16 +50,17 @@ class MessageLaunchAbstract(ABC):
     - Custom parameters: Custom data platform passes to tool
         - Roles: User roles (e.g.,
             'http://purl.imsglobal.org/vocab/lis/v2/institution/person#Instructor')
-    
+
     HTTPS Requirement:
     - All Platform/Tool URLs must use HTTPS for production
     - Except localhost (127.0.0.1, ::1) allowed for development
     - Prevents man-in-the-middle attacks on tokens
-    
+
     Reference:
     - LTI 1.3 Resource Link Request: https://www.imsglobal.org/spec/lti/v1p3/#resource-link-request
     - LTI Deep Link Launch: https://www.imsglobal.org/spec/lti-dl/v2p0/#lifecycle
     """
+
     _request = None
     _registration: t.Optional[Registration] = None
 
@@ -102,18 +103,18 @@ class MessageLaunchAbstract(ABC):
     ) -> None:
         """
         Set user data/roles and convert to IMS LTI 1.3 Standard Claims
-        
+
         LTI 1.3 User Claims:
         The platform includes these claims in the LTI launch JWT to tell the tool
         about the user launching the tool.
-        
+
         User Identity Claims:
         - sub: Locally stable opaque user identifier
           * Does NOT need to be user's actual username
           * Must be stable (same user always gets same sub value)
           * Example: "user-123" (platform-specific ID)
           * Tool uses this to correlate requests from same user
-        
+
         Roles Claim:
         - https://purl.imsglobal.org/spec/lti/claim/roles
         - Array of URIs representing user's roles in the context
@@ -122,31 +123,31 @@ class MessageLaunchAbstract(ABC):
           * http://purl.imsglobal.org/vocab/lis/v2/institution/person#Student
           * http://purl.imsglobal.org/vocab/lis/v2/institution/person#Administrator
         - Tool uses roles to determine what user can do (e.g., grading UI for instructors only)
-        
+
         Optional Identity Claims:
         - name: Full name of the user
         - email: Email address (if available and privacy rules allow)
         - preferred_username: Username if appropriate
-        
+
         Privacy Considerations:
         - Platform should only include claims that:
           1. User has agreed to share
           2. Tool legitimately needs to function
           3. Comply with institutional privacy policies
         - PII (Personally Identifiable Information) should be minimal and necessary
-        
+
         Usage by Tool:
         1. Tool receives JWT with these claims
         2. Tool validates JWT signature (verify platform signed it)
         3. Tool extracts user claims to identify user
         4. Tool can check roles to enable/disable features
         5. Tool registers/creates user account if first time
-        
+
         Reference (User Identity Claims):
         - https://www.imsglobal.org/spec/lti/v1p3/#user-identity-claims
         - https://www.imsglobal.org/spec/lti/v1p3/#roles-claim
         - https://www.imsglobal.org/spec/lti/v1p3/#core-recommended-claims
-        
+
         Parameters:
             user_id: Unique, stable user identifier (sub claim)
             lis_roles: List of role URIs from IMS LIS vocabulary
@@ -380,38 +381,38 @@ class MessageLaunchAbstract(ABC):
     ) -> None:
         """
         Validate LTI launch preflight response from platform's authorization endpoint
-        
+
         OpenID Connect Authorization Endpoint Response:
         When the platform's OIDC authorization endpoint processes the login request,
         it returns parameters that the tool must validate before granting access.
-        
+
         Validation Checks:
         ==================
-        
+
         1. response_type = "id_token"
            - OIDC Implicit Flow: Request JWT token directly, no authorization code exchange
            - Alternative flows use "code" (Authorization Code Flow)
            - LTI 1.3 uses "id_token" response type
-        
+
         2. scope = "openid"
            - OIDC scope indicating OpenID Connect authentication
            - (Not the same as OAuth 2.0 scope for API permissions)
            - Tell authorization server we want OIDC identity token
-        
+
         3. nonce present and valid
            - Random value generated by tool before redirect to platform
            - Platform must include exact same nonce in response
            - Prevents authorization code/token interception attacks
            - Replay attack protection (See OIDC spec)
            - Example: Tool generates nonce='abc123', validates response has nonce='abc123'
-        
+
         4. state present and valid
            - Random value generated by tool before redirect to platform
            - Platform must include exact same state in response
            - Prevents Cross-Site Request Forgery (CSRF) attacks
            - Example attack prevented: Attacker tricks user into visiting evil.com which
              sends them to wrong authorization endpoint, tries to get them logged in there
-        
+
         5. redirect_uri validation
            - Must match one of tool's pre-registered redirect URIs
            - HTTPS REQUIRED in production
@@ -420,18 +421,18 @@ class MessageLaunchAbstract(ABC):
            - Allows http://localhost for local development
            - Allows http://127.0.0.1 for local development
            - Allows http://::1 for local IPv6 localhost development
-        
+
         6. client_id validation
            - Must match tool's registered client_id at platform
            - Ensures response is for correct tool instance
-        
+
         HTTPS Requirement (Production Security):
         =========================================
         - All redirect_uri values must use HTTPS
         - Prevents man-in-the-middle attacks
         - Attackers cannot intercept tokens in transit
         - Exceptions: localhost addresses for development/testing
-        
+
         Token Flow After Validation:
         =============================
         After these validations pass, the tool will:
@@ -440,24 +441,24 @@ class MessageLaunchAbstract(ABC):
         3. Verify all claims in id_token
         4. Extract user/context information from claims
         5. Grant access to user
-        
+
         Security Considerations:
         ========================
         - Validate AGAINST a whitelist of known-good values
         - Never trust input parameters directly
         - HTTPS encryption prevents token interception
         - JWT signature proves platform created this response
-        
+
         Reference:
         - OIDC Implicit Flow: https://openid.net/specs/openid-connect-core-1_0.html#ImplicitFlow
         - OIDC Nonce: https://openid.net/specs/openid-connect-core-1_0.html#NonceNotes
         - OAuth 2.0 CSRF: https://tools.ietf.org/html/rfc6749#section-10.12
                 - LTI 1.3 Preflight Response Validation:  # pylint: disable=line-too-long
                     https://www.imsglobal.org/spec/lti/v1p3/#authorization
-        
+
         Parameters:
             preflight_response: Dict with response parameters from authorization endpoint
-        
+
         Raises:
             PreflightRequestValidationException: If any validation fails
         """
@@ -473,13 +474,16 @@ class MessageLaunchAbstract(ABC):
             assert preflight_response.get("nonce")
             assert preflight_response.get("state")
             redirect_uri = preflight_response.get("redirect_uri")
-            assert redirect_uri and redirect_uri in self._registration.get_tool_redirect_uris()  # pylint: disable=line-too-long
+            assert redirect_uri and redirect_uri in (
+                self._registration.get_tool_redirect_uris() or []
+            )  # pylint: disable=line-too-long
 
             parsed_redirect_uri = urlparse(redirect_uri)
             if parsed_redirect_uri.scheme != "https":
                 is_allowed_loopback = (
                     parsed_redirect_uri.scheme == "http"
-                    and parsed_redirect_uri.hostname in {"localhost", "127.0.0.1", "::1"}
+                    and parsed_redirect_uri.hostname
+                    in {"localhost", "127.0.0.1", "::1"}
                 )
                 assert is_allowed_loopback
 

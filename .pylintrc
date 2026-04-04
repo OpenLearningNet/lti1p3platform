@@ -4,6 +4,7 @@ disable=
     C0115, # missing-class-docstring
     C0116, # missing-function-docstring
     W0511, # fixme
+    R0801, # duplicate-code
 
 extension-pkg-whitelist=pydantic
 ignore=framework, migrations

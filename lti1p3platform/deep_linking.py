@@ -25,7 +25,7 @@ from .exceptions import LtiDeepLinkingContentTypeNotSupported
 class LtiDeepLinking:
     """
     LTI 1.3 Advantage - Deep Linking Service Handler
-    
+
     Deep Linking Launch Flow:
     1. Instructor clicks "Select Content from External Tool" in LMS
     2. Platform sends special LTI message to tool (includes deep_linking data)
@@ -35,12 +35,12 @@ class LtiDeepLinking:
     6. Tool redirects back to platform with response
     7. Platform validates response and records selection
     8. Content appears in course
-    
+
     This class handles:
     - Creating Deep Linking launch claims (Step 2)
     - Validating Deep Linking responses (Step 6)
     - Creating Deep Linking response returns (Step 5)
-    
+
     Deep Linking Claims in Launch Message:
     - accept_types: What types of content the platform can accept
     - accept_media_types: What media types are acceptable
@@ -52,7 +52,7 @@ class LtiDeepLinking:
     - accept_unsigned: Allow unsigned deep links (default: false, require signature)
     - accept_multiple: Allow selecting multiple items (default: false, single item)
     - accept_lineitem: Platform accepts a grading item (AGS)
-    
+
     Deep Linking Response Format:
     - Signed JWT with claims:
       * https://purl.imsglobal.org/spec/lti-dl/claim/content_items:
@@ -61,7 +61,7 @@ class LtiDeepLinking:
       * nonce: Echoed from request (replay protection)
       * aud: Platform's deep link return URL
       * Plus standard claims (iss, sub, iat, exp, jti)
-    
+
     Security Mechanisms:
     - Only platform's registered deep_linking_launch_url can receive launch
     - Tool must validate authorization before showing content browser
@@ -69,7 +69,7 @@ class LtiDeepLinking:
     - Nonce prevents replay of old responses
     - JTI prevents token reuse
     - Return URL (aud claim) prevents sending response to wrong platform
-    
+
     Reference:
     - LTI Advantage Services: https://www.imsglobal.org/spec/lti/v1p3/#lti-advantage-services
     - Deep Linking Spec: https://www.imsglobal.org/spec/lti-dl/v2p0/
@@ -81,7 +81,7 @@ class LtiDeepLinking:
     ) -> None:
         """
         Initialize Deep Linking response handler
-        
+
         Parameters:
             deep_linking_return_url: URL where to POST Deep Link Response
                 - Is provided by platform in the launch message
@@ -99,14 +99,14 @@ class LtiDeepLinking:
     ) -> t.Dict[str, t.Any]:
         """
         Generate Deep Linking Launch Claim for LTI message
-        
+
         This claim is included in the LTI launch message when the platform wants
         the tool to display a content selection interface (Deep Linking).
-        
+
         Platform -> Tool Communication:
         The platform includes this claim in the id_token JWT to tell the tool:
         "Display content selection UI and return what the user selects"
-        
+
         Claim Structure:
         ================
         {
@@ -123,7 +123,7 @@ class LtiDeepLinking:
                 "data": "Custom data to echo back"           # Platform can pass arbitrary data
             }
         }
-        
+
         Parameters:
             title: Prefill title in tool's content browser UI
             description: Prefill description/text in tool's content browser UI
@@ -134,15 +134,15 @@ class LtiDeepLinking:
                 - "image": Image content
                 - "link": External URL/link
                 - If None: all types accepted
-            
+
             extra_data: Custom data returned in Deep Link Response
                 - Platform can include any opaque data
                 - Tool must echo this back in response
                 - Allows platform to remember context (course ID, module ID, etc.)
-        
+
         Returns:
             dict: The deep_linking_settings claim to inject into LTI launch message
-        
+
         Raises:
             LtiDeepLinkingContentTypeNotSupported: If invalid content types requested
         """
