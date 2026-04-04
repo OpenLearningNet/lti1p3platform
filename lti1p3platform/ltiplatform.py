@@ -12,6 +12,7 @@ import requests
 import jwt
 from jwcrypto.jwk import JWK  # type: ignore
 
+from . import exceptions
 from .registration import Registration
 from .constants import (
     LTI_1P3_ACCESS_TOKEN_SCOPES,
@@ -22,6 +23,8 @@ from .exceptions import (
     MissingRequiredClaim,
     UnsupportedGrantType,
     InvalidKeySetUrl,
+    InvalidJwtToken,
+    InvalidClientAssertion,
     LtiException,
     LtiDeepLinkingResponseException,
 )
@@ -192,7 +195,8 @@ class LTI1P3PlatformConfAbstract(ABC):
         Returns:
             JWKS: Dictionary with 'keys' list containing JWK objects
         """
-        assert self._registration is not None, "Registration not yet set"
+        if self._registration is None:
+            raise exceptions.PlatformNotReadyException("Registration not yet set")
 
         return {"keys": self._registration.get_jwks()}
 
@@ -272,15 +276,17 @@ class LTI1P3PlatformConfAbstract(ABC):
         """
         Get tool public key
         """
-        assert self._registration is not None, "Registration not yet set"
+        if self._registration is None:
+            raise exceptions.PlatformNotReadyException("Registration not yet set")
 
         tool_key_set = self._registration.get_tool_key_set()
         tool_key_set_url = self._registration.get_tool_key_set_url()
 
         if not tool_key_set:
-            assert (
-                tool_key_set_url is not None
-            ), "If public_key_set is not set, public_set_url should be set"
+            if tool_key_set_url is None:
+                raise exceptions.PlatformNotReadyException(
+                    "If public_key_set is not set, public_set_url should be set"
+                )
             if tool_key_set_url.startswith("https://"):
                 tool_key_set = self.fetch_public_key(tool_key_set_url)
                 self._registration.set_tool_key_set(tool_key_set)
@@ -304,7 +310,7 @@ class LTI1P3PlatformConfAbstract(ABC):
 
         if len(jwt_parts) != 3:
             # Invalid number of parts in JWT.
-            raise LtiException("Invalid id_token, JWT must contain 3 parts")
+            raise InvalidJwtToken("Invalid id_token, JWT must contain 3 parts")
 
         try:
             # Decode JWT headers.
@@ -315,7 +321,7 @@ class LTI1P3PlatformConfAbstract(ABC):
             body = self.urlsafe_b64decode(jwt_parts[1])
             self._jwt["body"] = json.loads(body)
         except Exception as exc:
-            raise LtiException("Invalid JWT format, can't be decoded") from exc
+            raise InvalidJwtToken("Invalid JWT format, can't be decoded") from exc
 
     def get_tool_public_key(self) -> bytes:
         tool_key_set = self.get_tool_key_set()
@@ -325,9 +331,9 @@ class LTI1P3PlatformConfAbstract(ABC):
         alg = self._jwt.get("header", {}).get("alg", None)
 
         if not kid:
-            raise LtiException("JWT KID not found")
+            raise InvalidJwtToken("JWT KID not found")
         if not alg:
-            raise LtiException("JWT ALG not found")
+            raise InvalidJwtToken("JWT ALG not found")
 
         for key in tool_key_set["keys"]:
             key_kid = key.get("kid")
@@ -341,7 +347,7 @@ class LTI1P3PlatformConfAbstract(ABC):
                     raise LtiException("Can't convert JWT key to PEM format") from error
 
         # Could not find public key with a matching kid and alg.
-        raise LtiException("Unable to find public key")
+        raise InvalidJwtToken("Unable to find public key")
 
     def tool_validate_and_decode(
         self, jwt_token_string: str, audience: str
@@ -471,6 +477,7 @@ class LTI1P3PlatformConfAbstract(ABC):
         self.cache_set(cache_key, exp)
         return False
 
+    # pylint: disable=too-many-branches
     def _validate_tool_access_token_assertion(
         self, decoded_assertion: t.Dict[str, t.Any], expected_audience: str
     ) -> None:
@@ -523,7 +530,8 @@ class LTI1P3PlatformConfAbstract(ABC):
             MissingRequiredClaim: If required header/claim is missing
             LtiException: If any semantic validation fails (iss, sub, aud, timing, jti)
         """
-        assert self._registration is not None, "Registration not yet set"
+        if self._registration is None:
+            raise exceptions.PlatformNotReadyException("Registration not yet set")
 
         required_claims = ["iss", "sub", "aud", "iat", "exp", "jti"]
         for required_claim in required_claims:
@@ -536,12 +544,11 @@ class LTI1P3PlatformConfAbstract(ABC):
         if not client_id:
             raise LtiException("Client ID is not set")
 
-        print(decoded_assertion)
         if decoded_assertion["iss"] != client_id:
-            raise LtiException("Invalid client_assertion iss")
+            raise InvalidClientAssertion("Invalid client_assertion iss")
 
         if decoded_assertion["sub"] != client_id:
-            raise LtiException("Invalid client_assertion sub")
+            raise InvalidClientAssertion("Invalid client_assertion sub")
 
         aud_claim = decoded_assertion.get("aud")
         if isinstance(aud_claim, str):
@@ -549,22 +556,22 @@ class LTI1P3PlatformConfAbstract(ABC):
         elif isinstance(aud_claim, list):
             aud_values = aud_claim
         else:
-            raise LtiException("Invalid client_assertion aud")
+            raise InvalidClientAssertion("Invalid client_assertion aud")
 
         if expected_audience not in aud_values:
-            raise LtiException("Invalid client_assertion audience")
+            raise InvalidClientAssertion("Invalid client_assertion audience")
 
         now = int(time.time())
         iat = int(decoded_assertion["iat"])
         exp = int(decoded_assertion["exp"])
         if iat > now + 60:
-            raise LtiException("Invalid client_assertion iat")
+            raise InvalidClientAssertion("Invalid client_assertion iat")
         if exp <= now:
-            raise LtiException("Invalid client_assertion exp")
+            raise InvalidClientAssertion("Invalid client_assertion exp")
 
         jti = str(decoded_assertion["jti"])
         if self._is_token_replay(jti, exp):
-            raise LtiException("Replay detected for client_assertion jti")
+            raise InvalidClientAssertion("Replay detected for client_assertion jti")
 
     def get_access_token(
         self, token_request_data: t.Dict[str, t.Any]
@@ -629,13 +636,15 @@ class LTI1P3PlatformConfAbstract(ABC):
             UnsupportedGrantType: If grant_type is not client_credentials
             LtiException: Various validation failures (see _validate_tool_access_token_assertion)
         """
-        assert self._registration is not None, "Registration not yet set"
+        if self._registration is None:
+            raise exceptions.PlatformNotReadyException("Registration not yet set")
 
         private_key = self._registration.get_platform_private_key()
-        assert private_key is not None, (
-            "Platform private key not yet set. "
-            "Please set it with set_platform_private_key()"
-        )
+        if private_key is None:
+            raise exceptions.PlatformNotReadyException(
+                "Platform private key not yet set. "
+                "Please set it with set_platform_private_key()"
+            )
 
         # Check if all required claims are present
         for required_claim in LTI_1P3_ACCESS_TOKEN_REQUIRED_CLAIMS:
@@ -651,7 +660,7 @@ class LTI1P3PlatformConfAbstract(ABC):
         if token_request_data["client_assertion_type"] != (
             "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
         ):
-            raise LtiException("Invalid client_assertion_type")
+            raise InvalidClientAssertion("Invalid client_assertion_type")
 
         expected_audience = self._registration.get_access_token_url()
         if not expected_audience:
@@ -702,10 +711,12 @@ class LTI1P3PlatformConfAbstract(ABC):
         self, token_request_data: t.Dict[str, t.Any]
     ) -> t.List[t.Dict[str, t.Any]]:
         jwt_token_string = token_request_data["JWT"]
-        assert self._registration is not None, "Registration not yet set"
+        if self._registration is None:
+            raise exceptions.PlatformNotReadyException("Registration not yet set")
 
         expected_audience = self._registration.get_iss()
-        assert expected_audience is not None
+        if expected_audience is None:
+            raise exceptions.PlatformNotReadyException("Issuer (iss) not configured")
 
         deep_link_response = self.tool_validate_and_decode(
             jwt_token_string, audience=expected_audience
@@ -769,20 +780,24 @@ class LTI1P3PlatformConfAbstract(ABC):
         Returns:
             is_valid: True if token is valid, False otherwise
         """
-        assert self._registration is not None, "Registration not yet set"
+        if self._registration is None:
+            raise exceptions.PlatformNotReadyException("Registration not yet set")
 
         public_key = self._registration.get_platform_public_key()
-        assert public_key is not None
+        if public_key is None:
+            raise exceptions.PlatformNotReadyException(
+                "Platform public key not configured"
+            )
 
         token_contents = Registration.decode_and_verify(
             token, public_key, audience=audience
         )
 
         if token_contents.get("iss") != self._registration.get_iss():
-            raise LtiException("Invalid issuer")
+            raise InvalidJwtToken("Invalid issuer")
 
         if "exp" in token_contents and token_contents["exp"] < time.time():
-            raise LtiException("Token expired")
+            raise InvalidJwtToken("Token expired")
 
         token_scopes = token_contents.get("scopes", "").split(" ")
 

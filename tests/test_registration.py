@@ -5,7 +5,11 @@ Covers getters/setters not exercised by other test files, plus
 encode_and_sign, decode_and_verify, and platform_encode_and_sign.
 """
 import time
+from unittest.mock import patch
 
+import pytest
+
+from lti1p3platform.exceptions import InternalSigningError, PlatformNotReadyException
 from lti1p3platform.registration import Registration
 
 from .platform_config import (
@@ -154,6 +158,23 @@ def test_platform_encode_and_sign():
     token = reg.platform_encode_and_sign({"custom": "value"}, expiration=60)
     decoded = Registration.decode_and_verify(token, RSA_PUBLIC_KEY_PEM)
     assert decoded["custom"] == "value"
+
+
+def test_platform_encode_and_sign_without_private_key_raises():
+    reg = Registration()
+
+    with pytest.raises(PlatformNotReadyException, match="private key"):
+        reg.platform_encode_and_sign({"custom": "value"}, expiration=60)
+
+
+def test_platform_encode_and_sign_wraps_signing_errors():
+    reg = _make_registration()
+
+    with patch.object(
+        Registration, "encode_and_sign", side_effect=RuntimeError("boom")
+    ):
+        with pytest.raises(InternalSigningError, match="Failed to sign platform JWT"):
+            reg.platform_encode_and_sign({"custom": "value"}, expiration=60)
 
 
 def test_get_jwks_returns_list_with_key():

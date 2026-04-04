@@ -1,6 +1,6 @@
 import typing as t
 
-from django.http import HttpRequest, HttpResponse
+from django.http import HttpResponse, HttpResponseRedirect
 
 from lti1p3platform.message_launch import LTIAdvantageMessageLaunchAbstract
 from lti1p3platform.ltiplatform import LTI1P3PlatformConfAbstract
@@ -23,3 +23,9 @@ class DjangoLTI1P3MessageLaunch(LTIAdvantageMessageLaunchAbstract):
         self, launch_data: t.Dict[str, t.Any], **kwargs: t.Any
     ) -> HttpResponse:
         return HttpResponse(template.render(launch_data))
+
+    def get_redirect(self, url: str) -> HttpResponseRedirect:
+        return HttpResponseRedirect(url)
+
+    def render_error_page(self, message: str, status_code: int) -> HttpResponse:
+        return HttpResponse(message, status=status_code)

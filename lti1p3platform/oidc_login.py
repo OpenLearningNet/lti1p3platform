@@ -96,7 +96,10 @@ class OIDCLoginAbstract(ABC):
         if not self._launch_url:
             launch_url = self._registration.get_launch_url()
 
-            assert launch_url, "Launch url is not set"
+            if not launch_url:
+                raise exceptions.InvalidRequestUri(
+                    "Launch URL is not configured in registration"
+                )
             self.set_launch_url(launch_url)
 
         return self._launch_url
@@ -188,13 +191,24 @@ class OIDCLoginAbstract(ABC):
             PreflightRequestValidationException: If required fields not configured
         """
         launch_url = self.get_launch_url()
-        try:
-            assert self._registration.get_iss()
-            assert launch_url
-            assert self.get_lti_message_hint()
-            assert user_id
-        except AssertionError as err:
-            raise exceptions.PreflightRequestValidationException from err
+
+        if not self._registration.get_iss():
+            raise exceptions.PlatformNotReadyException(
+                "Issuer (iss) is not configured in registration"
+            )
+
+        if not launch_url:
+            raise exceptions.InvalidRequestUri("Launch URL is not configured")
+
+        if not self.get_lti_message_hint():
+            raise exceptions.InvalidRequestData(
+                "LTI message hint (lti_message_hint) is not set"
+            )
+
+        if not user_id:
+            raise exceptions.InvalidRequestData(
+                "User ID is required for preflight request"
+            )
 
         params = {
             "iss": self._registration.get_iss(),
@@ -215,6 +229,10 @@ class OIDCLoginAbstract(ABC):
         encoded_params = urlencode(params)
 
         oidc_login_url = self._registration.get_oidc_login_url()
+        if not oidc_login_url:
+            raise exceptions.PlatformNotReadyException(
+                "OIDC login URL is not configured in registration"
+            )
         parsed_url = urlparse(oidc_login_url)
         query = parsed_url.query
 
@@ -231,6 +249,42 @@ class OIDCLoginAbstract(ABC):
     @abstractmethod
     def get_redirect(self, url: str) -> t.Any:
         raise NotImplementedError
+
+    @abstractmethod
+    def render_error_page(self, message: str, status_code: int) -> t.Any:
+        raise NotImplementedError
+
+    def build_error_redirect_url(
+        self,
+        redirect_uri: str,
+        error: Exception,
+        state: t.Optional[str] = None,
+    ) -> str:
+        params = {
+            "error": exceptions.get_error_code(error),
+            "error_description": str(error),
+        }
+        if state:
+            params["state"] = state
+
+        separator = "&" if urlparse(redirect_uri).query else "?"
+        return f"{redirect_uri}{separator}{urlencode(params)}"
+
+    def get_error_response(
+        self,
+        error: Exception,
+        redirect_uri: t.Optional[str] = None,
+        state: t.Optional[str] = None,
+    ) -> t.Any:
+        if redirect_uri and exceptions.get_error_response_behavior(error) == "redirect":
+            return self.get_redirect(
+                self.build_error_redirect_url(redirect_uri, error, state)
+            )
+
+        return self.render_error_page(
+            str(error),
+            exceptions.get_error_page_status_code(error),
+        )
 
     def initiate_login(self, user_id: str) -> t.Any:
         """
@@ -258,8 +312,9 @@ class OIDCLoginAbstract(ABC):
         Raises:
             PreflightRequestValidationException: If configuration validation fails
         """
-        # prepare preflight url
-        preflight_url = self.prepare_preflight_url(user_id)
-
-        # redirect to preflight url
-        return self.get_redirect(preflight_url)
+        try:
+            preflight_url = self.prepare_preflight_url(user_id)
+            return self.get_redirect(preflight_url)
+        except Exception as err:  # pylint: disable=broad-exception-caught
+            launch_url = self._launch_url or self._registration.get_launch_url()
+            return self.get_error_response(err, redirect_uri=launch_url)

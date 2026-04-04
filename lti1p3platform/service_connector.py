@@ -3,7 +3,11 @@ import typing as t
 from urllib.parse import urlencode
 import typing_extensions as te
 
-from .exceptions import LtiServiceException, LineItemNotFoundException
+from .exceptions import (
+    LtiServiceException,
+    LineItemNotFoundException,
+    InvalidRequestData,
+)
 from .lineitem import TLineItem
 from .score import TScore, UpdateScoreStatus, UPDATE_SCORE_STATUSCODE
 from .request import Request
@@ -37,7 +41,8 @@ def authenticate(
         def inner(
             service: "AssignmentsGradesService", *args: t.Any, **kwargs: t.Any
         ) -> Response:
-            assert service.request
+            if service.request is None:
+                raise LtiServiceException("Request context not available", 400)
 
             auth = service.request.headers.get("Authorization", "").split()
 
@@ -171,7 +176,8 @@ class AssignmentsGradesService(BasicService):
         # The results service endpoint is a subpath of the line item
         # resource URL: it MUST be the line item resource URL with the
         # path appended with '/results'.
-        assert self.request is not None
+        if self.request is None:
+            raise LtiServiceException("Request context not available", 500)
 
         lti_params = self.request.get_data
 
@@ -197,7 +203,8 @@ class AssignmentsGradesService(BasicService):
         # The scores service endpoint is a subpath of the line item
         # resource URL: it MUST be the line item resource URL with the
         # path appended with '/scores'.
-        assert self.request is not None
+        if self.request is None:
+            raise LtiServiceException("Request context not available", 500)
 
         score = self.request.json
 
@@ -214,7 +221,8 @@ class AssignmentsGradesService(BasicService):
         accept="application/vnd.ims.lis.v2.lineitemcontainer+json",
     )
     def handle_get_lineitems(self) -> Response:
-        assert self.request is not None
+        if self.request is None:
+            raise LtiServiceException("Request context not available", 500)
 
         lti_params = self.request.get_data
 
@@ -235,7 +243,8 @@ class AssignmentsGradesService(BasicService):
         allow_methods=["POST"], accept="application/vnd.ims.lis.v2.lineitem+json"
     )
     def handle_create_lineitem(self) -> Response:
-        assert self.request is not None
+        if self.request is None:
+            raise LtiServiceException("Request context not available", 500)
 
         lineitem = self.request.json
 
@@ -256,7 +265,8 @@ class AssignmentsGradesService(BasicService):
         allow_methods=["PUT"], accept="application/vnd.ims.lis.v2.lineitem+json"
     )
     def handle_update_lineitem(self, line_item_id: str) -> Response:
-        assert self.request is not None
+        if self.request is None:
+            raise LtiServiceException("Request context not available", 500)
 
         try:
             update_data = self.request.json
@@ -317,9 +327,9 @@ class NamesRoleProvisioningService(BasicService):
 
         for member in members:
             if "user_id" not in member:
-                raise LtiServiceException("No user_id", 400)
+                raise InvalidRequestData("No user_id in member data")
             if "roles" not in member:
-                raise LtiServiceException("No roles", 400)
+                raise InvalidRequestData("No roles in member data")
 
             if not member.get("status"):
                 member["status"] = Status.ACTIVE.value
@@ -333,7 +343,8 @@ class NamesRoleProvisioningService(BasicService):
         accept="application/vnd.ims.lti-nrps.v2.membershipcontainer+json",
     )
     def handle_get_members(self) -> Response:
-        assert self.request is not None
+        if self.request is None:
+            raise LtiServiceException("Request context not available", 500)
 
         query_params = self.request.get_data
 

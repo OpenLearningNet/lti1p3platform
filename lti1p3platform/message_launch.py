@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 import typing as t
-from urllib.parse import urlparse
+from urllib.parse import urlencode, urlparse
 
 from abc import ABC, abstractmethod
 from typing_extensions import TypedDict
@@ -24,7 +24,7 @@ class LaunchData(TypedDict):
     state: str
 
 
-# pylint: disable=too-many-instance-attributes
+# pylint: disable=too-many-instance-attributes,too-many-public-methods
 class MessageLaunchAbstract(ABC):
     """
     Abstract base class for LTI 1.3 Message Launch handling
@@ -86,7 +86,8 @@ class MessageLaunchAbstract(ABC):
         self.id_token_expiration = 5 * 60
 
     def get_preflight_response(self) -> t.Dict[str, t.Any]:
-        assert self._request is not None
+        if self._request is None:
+            raise exceptions.PlatformNotReadyException("Request context not available")
         # pylint: disable=protected-access
         return self._request.get_data or self._request.form_data
 
@@ -320,7 +321,8 @@ class MessageLaunchAbstract(ABC):
         return self
 
     def get_launch_url(self) -> t.Optional[str]:
-        assert self._registration
+        if self._registration is None:
+            raise exceptions.PlatformNotReadyException("Registration not yet set")
 
         if not self._launch_url:
             self._launch_url = self._registration.get_launch_url()
@@ -330,7 +332,8 @@ class MessageLaunchAbstract(ABC):
     def get_launch_message(
         self, include_extra_claims: bool = True
     ) -> t.Dict[str, t.Any]:
-        assert self._registration
+        if self._registration is None:
+            raise exceptions.PlatformNotReadyException("Registration not yet set")
 
         launch_message: t.Dict[str, t.Any] = LTI_BASE_MESSAGE.copy()
 
@@ -461,41 +464,62 @@ class MessageLaunchAbstract(ABC):
             preflight_response: Dict with response parameters from authorization endpoint
 
         Raises:
-            PreflightRequestValidationException: If any validation fails
+            InvalidRequestData: If required parameters are missing
+            UnauthorizedClient: If client_id is unknown
+            UnsupportedResponseType: If response_type is invalid
+            InvalidScopeException: If scope is invalid
+            InvalidRequestUri: If redirect_uri is invalid
         """
-        assert self._registration
+        if self._registration is None:
+            raise exceptions.PlatformNotReadyException("Registration not yet set")
 
-        try:
-            assert (
-                preflight_response.get("response_type") == "id_token"
-            ), "Invalid response type in preflight response"
-            assert (
-                preflight_response.get("scope") == "openid"
-            ), "Invalid scope in preflight response"
-            assert preflight_response.get("nonce")
-            assert preflight_response.get("state")
-            redirect_uri = preflight_response.get("redirect_uri")
-            assert redirect_uri and redirect_uri in (
-                self._registration.get_tool_redirect_uris() or []
-            )  # pylint: disable=line-too-long
-
-            parsed_redirect_uri = urlparse(redirect_uri)
-            if parsed_redirect_uri.scheme != "https":
-                is_allowed_loopback = (
-                    parsed_redirect_uri.scheme == "http"
-                    and parsed_redirect_uri.hostname
-                    in {"localhost", "127.0.0.1", "::1"}
-                )
-                assert is_allowed_loopback
-
-            assert (
-                preflight_response.get("client_id")
-                == self._registration.get_client_id()
+        required_params = [
+            "client_id",
+            "response_type",
+            "scope",
+            "nonce",
+            "state",
+            "redirect_uri",
+        ]
+        missing_params = [
+            param for param in required_params if not preflight_response.get(param)
+        ]
+        if missing_params:
+            raise exceptions.InvalidRequestData(
+                f"Missing required parameters: {', '.join(missing_params)}"
             )
 
-            self._redirect_url = redirect_uri
-        except AssertionError as err:
-            raise exceptions.PreflightRequestValidationException from err
+        if preflight_response.get("client_id") != self._registration.get_client_id():
+            raise exceptions.UnauthorizedClient(
+                "Invalid client_id in preflight response"
+            )
+
+        if preflight_response.get("response_type") != "id_token":
+            raise exceptions.UnsupportedResponseType(
+                "Invalid response_type: expected 'id_token'"
+            )
+
+        if preflight_response.get("scope") != "openid":
+            raise exceptions.InvalidScopeException("Invalid scope: expected 'openid'")
+
+        redirect_uri = preflight_response.get("redirect_uri")
+        if redirect_uri not in (self._registration.get_tool_redirect_uris() or []):
+            raise exceptions.InvalidRequestUri(
+                f"redirect_uri '{redirect_uri}' not registered for this tool"
+            )
+
+        parsed_redirect_uri = urlparse(redirect_uri)
+        if parsed_redirect_uri.scheme != "https":
+            is_allowed_loopback = (
+                parsed_redirect_uri.scheme == "http"
+                and parsed_redirect_uri.hostname in {"localhost", "127.0.0.1", "::1"}
+            )
+            if not is_allowed_loopback:
+                raise exceptions.InvalidRequestUri(
+                    "redirect_uri must use HTTPS (except localhost for development)"
+                )
+
+        self._redirect_url = redirect_uri
 
     def get_launch_data(self) -> t.Tuple[t.Dict[str, t.Any], str]:
         preflight_response = self.get_preflight_response()
@@ -516,7 +540,8 @@ class MessageLaunchAbstract(ABC):
         """
         launch_message, state = self.get_launch_data()
 
-        assert self._registration
+        if self._registration is None:
+            raise exceptions.PlatformNotReadyException("Registration not yet set")
 
         # sign launch message with private key
         id_token = self._registration.platform_encode_and_sign(
@@ -531,25 +556,71 @@ class MessageLaunchAbstract(ABC):
     ) -> t.Any:
         raise NotImplementedError
 
+    @abstractmethod
+    def get_redirect(self, url: str) -> t.Any:
+        raise NotImplementedError
+
+    @abstractmethod
+    def render_error_page(self, message: str, status_code: int) -> t.Any:
+        raise NotImplementedError
+
+    def build_error_redirect_url(
+        self,
+        redirect_uri: str,
+        error: Exception,
+        state: t.Optional[str] = None,
+    ) -> str:
+        params = {
+            "error": exceptions.get_error_code(error),
+            "error_description": str(error),
+        }
+        if state:
+            params["state"] = state
+
+        separator = "&" if urlparse(redirect_uri).query else "?"
+        return f"{redirect_uri}{separator}{urlencode(params)}"
+
+    def get_error_response(
+        self,
+        error: Exception,
+        redirect_uri: t.Optional[str] = None,
+        state: t.Optional[str] = None,
+    ) -> t.Any:
+        if redirect_uri and exceptions.get_error_response_behavior(error) == "redirect":
+            return self.get_redirect(
+                self.build_error_redirect_url(redirect_uri, error, state)
+            )
+
+        return self.render_error_page(
+            str(error),
+            exceptions.get_error_page_status_code(error),
+        )
+
     def lti_launch(self, **kwargs: t.Any) -> t.Any:
         # This should render a form, and then submit it to the tool's launch URL, as
         # described in http://www.imsglobal.org/spec/lti/v1p3/#lti-message-general-details
 
         self._registration = self._platform_config.get_registration()
+        preflight_response: t.Dict[str, t.Any] = {}
 
-        preflight_response = self.get_preflight_response()
+        try:
+            preflight_response = self.get_preflight_response()
 
-        # validate preflight request response from tool
-        self.validate_preflight_response(preflight_response)
+            # validate preflight request response from tool
+            self.validate_preflight_response(preflight_response)
 
-        self.prepare_launch(preflight_response)
+            self.prepare_launch(preflight_response)
 
-        launch_data = self.generate_launch_request()
+            launch_data = self.generate_launch_request()
 
-        launch_data_copy = dict(launch_data)
-        launch_data_copy.update({"launch_url": self._redirect_url})
+            launch_data_copy = dict(launch_data)
+            launch_data_copy.update({"launch_url": self._redirect_url})
 
-        return self.render_launch_form(launch_data_copy, **kwargs)
+            return self.render_launch_form(launch_data_copy, **kwargs)
+        except Exception as err:  # pylint: disable=broad-exception-caught
+            redirect_uri = preflight_response.get("redirect_uri")
+            state = preflight_response.get("state")
+            return self.get_error_response(err, redirect_uri=redirect_uri, state=state)
 
 
 class LTIAdvantageMessageLaunchAbstract(MessageLaunchAbstract):
@@ -607,7 +678,8 @@ class LTIAdvantageMessageLaunchAbstract(MessageLaunchAbstract):
         return self
 
     def generate_launch_request(self) -> LaunchData:
-        assert self._registration, "Registration is required"
+        if self._registration is None:
+            raise exceptions.PlatformNotReadyException("Registration is required")
 
         deep_linking_launch_url = self._registration.get_deeplink_launch_url()
 

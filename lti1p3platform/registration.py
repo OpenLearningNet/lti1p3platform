@@ -8,6 +8,7 @@ from jwcrypto.jwk import JWK  # type: ignore
 import jwt
 
 
+from . import exceptions
 from .jwt_helper import jwt_encode
 
 if t.TYPE_CHECKING:
@@ -394,7 +395,10 @@ class Registration:
     ) -> str:
         platform_private_key = self.get_platform_private_key()
 
-        assert platform_private_key is not None, "Platform private key is not set"
+        if platform_private_key is None:
+            raise exceptions.PlatformNotReadyException(
+                "Platform private key is not set"
+            )
 
         headers = None
         kid = self.get_kid()
@@ -402,6 +406,11 @@ class Registration:
         if kid:
             headers = {"kid": kid}
 
-        return Registration.encode_and_sign(
-            payload, platform_private_key, headers, expiration=expiration
-        )
+        try:
+            return Registration.encode_and_sign(
+                payload, platform_private_key, headers, expiration=expiration
+            )
+        except Exception as err:
+            raise exceptions.InternalSigningError(
+                "Failed to sign platform JWT"
+            ) from err

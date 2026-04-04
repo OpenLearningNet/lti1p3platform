@@ -26,6 +26,8 @@ from lti1p3platform.jwt_helper import jwt_encode
 from lti1p3platform.ltiplatform import LTI1P3PlatformConfAbstract
 from lti1p3platform.registration import Registration as _Registration
 from lti1p3platform.exceptions import (
+    InvalidClientAssertion,
+    InvalidJwtToken,
     InvalidKeySetUrl,
     LtiException,
     MissingRequiredClaim,
@@ -273,13 +275,13 @@ def test_get_tool_key_set_https_url_returns_and_caches():
 
 def test_validate_jwt_format_wrong_parts():
     platform = PlatformConf()
-    with pytest.raises(LtiException, match="JWT must contain 3 parts"):
+    with pytest.raises(InvalidJwtToken, match="JWT must contain 3 parts"):
         platform.validate_jwt_format("only.two")
 
 
 def test_validate_jwt_format_invalid_base64():
     platform = PlatformConf()
-    with pytest.raises(LtiException, match="can't be decoded"):
+    with pytest.raises(InvalidJwtToken, match="can't be decoded"):
         platform.validate_jwt_format("!@#$.!@#$.!@#$")
 
 
@@ -299,7 +301,7 @@ def test_get_tool_public_key_no_kid_raises():
     token = jwt_encode(claims, TOOL_PRIVATE_KEY_PEM, algorithm="RS256")
     platform.validate_jwt_format(token)
     platform._jwt["header"].pop("kid", None)
-    with pytest.raises(LtiException, match="KID not found"):
+    with pytest.raises(InvalidJwtToken, match="KID not found"):
         platform.get_tool_public_key()
 
 
@@ -317,7 +319,7 @@ def test_get_tool_public_key_no_alg_raises():
     )
     platform.validate_jwt_format(token)
     platform._jwt["header"].pop("alg", None)
-    with pytest.raises(LtiException, match="ALG not found"):
+    with pytest.raises(InvalidJwtToken, match="ALG not found"):
         platform.get_tool_public_key()
 
 
@@ -335,7 +337,7 @@ def test_get_tool_public_key_kid_not_found_raises():
     )
     platform.validate_jwt_format(token)
     platform._jwt["header"]["kid"] = "nonexistent-kid"
-    with pytest.raises(LtiException, match="Unable to find public key"):
+    with pytest.raises(InvalidJwtToken, match="Unable to find public key"):
         platform.get_tool_public_key()
 
 
@@ -401,7 +403,7 @@ def test_assertion_invalid_iss_raises():
         "exp": int(time.time()) + 60,
         "jti": str(uuid.uuid4()),
     }
-    with pytest.raises(LtiException, match="Invalid client_assertion iss"):
+    with pytest.raises(InvalidClientAssertion, match="Invalid client_assertion iss"):
         platform._validate_tool_access_token_assertion(
             decoded, PLATFORM_CONFIG["access_token_url"]
         )
@@ -417,7 +419,7 @@ def test_assertion_invalid_sub_raises():
         "exp": int(time.time()) + 60,
         "jti": str(uuid.uuid4()),
     }
-    with pytest.raises(LtiException, match="Invalid client_assertion sub"):
+    with pytest.raises(InvalidClientAssertion, match="Invalid client_assertion sub"):
         platform._validate_tool_access_token_assertion(
             decoded, PLATFORM_CONFIG["access_token_url"]
         )
@@ -433,7 +435,9 @@ def test_assertion_aud_string_wrong_raises():
         "exp": int(time.time()) + 60,
         "jti": str(uuid.uuid4()),
     }
-    with pytest.raises(LtiException, match="Invalid client_assertion audience"):
+    with pytest.raises(
+        InvalidClientAssertion, match="Invalid client_assertion audience"
+    ):
         platform._validate_tool_access_token_assertion(
             decoded, PLATFORM_CONFIG["access_token_url"]
         )
@@ -465,7 +469,7 @@ def test_assertion_aud_invalid_type_raises():
         "exp": int(time.time()) + 60,
         "jti": str(uuid.uuid4()),
     }
-    with pytest.raises(LtiException, match="Invalid client_assertion aud"):
+    with pytest.raises(InvalidClientAssertion, match="Invalid client_assertion aud"):
         platform._validate_tool_access_token_assertion(
             decoded, PLATFORM_CONFIG["access_token_url"]
         )
@@ -481,7 +485,7 @@ def test_assertion_iat_far_future_raises():
         "exp": int(time.time()) + 600,
         "jti": str(uuid.uuid4()),
     }
-    with pytest.raises(LtiException, match="Invalid client_assertion iat"):
+    with pytest.raises(InvalidClientAssertion, match="Invalid client_assertion iat"):
         platform._validate_tool_access_token_assertion(
             decoded, PLATFORM_CONFIG["access_token_url"]
         )
@@ -497,7 +501,7 @@ def test_assertion_exp_in_past_raises():
         "exp": int(time.time()) - 60,  # Already expired
         "jti": str(uuid.uuid4()),
     }
-    with pytest.raises(LtiException, match="Invalid client_assertion exp"):
+    with pytest.raises(InvalidClientAssertion, match="Invalid client_assertion exp"):
         platform._validate_tool_access_token_assertion(
             decoded, PLATFORM_CONFIG["access_token_url"]
         )
@@ -520,7 +524,7 @@ def test_assertion_jti_replay_raises():
     )
     # Second call with same JTI must fail
     decoded2 = dict(decoded)
-    with pytest.raises(LtiException, match="Replay detected"):
+    with pytest.raises(InvalidClientAssertion, match="Replay detected"):
         platform._validate_tool_access_token_assertion(
             decoded2, PLATFORM_CONFIG["access_token_url"]
         )
@@ -561,7 +565,7 @@ def test_get_access_token_wrong_grant_type_raises():
 
 def test_get_access_token_wrong_assertion_type_raises():
     platform = PlatformConf()
-    with pytest.raises(LtiException, match="Invalid client_assertion_type"):
+    with pytest.raises(InvalidClientAssertion, match="Invalid client_assertion_type"):
         platform.get_access_token(
             {
                 "grant_type": "client_credentials",
@@ -833,5 +837,5 @@ def test_validate_token_invalid_iss_raises():
         RSA_PRIVATE_KEY_PEM,
         expiration=3600,
     )
-    with pytest.raises(LtiException, match="Invalid issuer"):
+    with pytest.raises(InvalidJwtToken, match="Invalid issuer"):
         platform.validate_token(token)
