@@ -432,6 +432,7 @@ class LTI1P3PlatformConfAbstract(ABC):
         cache_key = f"jti:{jti}"
         if self.cache_get(cache_key) is not None:
             return True
+
         self.cache_set(cache_key, exp)
         return False
 
@@ -440,10 +441,9 @@ class LTI1P3PlatformConfAbstract(ABC):
         Detect and prevent nonce replay attacks in deep linking responses
 
         Nonce (Number Used Once) Security:
-        - Platform generates a random nonce for each deep linking request
-        - Tool includes this nonce in the deep linking response
-        - Platform validates that the received nonce matches what it sent
-        - This is a Cross-Site Request Forgery (CSRF) protection mechanism
+        - Tool generates a unique nonce for each deep linking response JWT
+        - Platform verifies the nonce has not been seen before
+        - Prevents replaying the same deep linking response token
 
         Replay Attack Prevention:
         - Platform caches all nonces received from tools
@@ -452,10 +452,9 @@ class LTI1P3PlatformConfAbstract(ABC):
         - Prevents attacker from reusing old deep linking messages
 
         Flow Example:
-        1. Platform generates nonce='xyz789' and sends to tool
-        2. Tool includes nonce='xyz789' in deep linking response
-        3. Platform caches nonce='xyz789' with expiration time
-        4. If nonce='xyz789' appears again, it's rejected as replay
+        1. Tool sends deep linking response with nonce='xyz789'
+        2. Platform caches nonce='xyz789' with expiration time
+        3. If nonce='xyz789' appears again, it's rejected as replay
 
         OpenID Connect Specification:
         - Nonce validation prevents authorization code/token replay attacks
@@ -725,14 +724,6 @@ class LTI1P3PlatformConfAbstract(ABC):
         nonce = deep_link_response.get("nonce")
         if not nonce:
             raise LtiDeepLinkingResponseException("Token nonce is missing")
-
-        # OIDC Core Section 3.1.3.7(11): the nonce in the response MUST equal the
-        # value that was sent in the authentication request.  Reject any nonce we
-        # did not originate to prevent token-substitution / replay attacks.
-        if self.cache_get(f"sent_nonce:{str(nonce)}") is None:
-            raise LtiDeepLinkingResponseException(
-                "Nonce was not issued by this platform"
-            )
 
         exp = deep_link_response.get("exp")
         if not exp:

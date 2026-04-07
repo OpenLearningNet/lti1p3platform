@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import time
 import typing as t
 from urllib.parse import urlencode, urlparse
 
@@ -697,13 +696,6 @@ class LTIAdvantageMessageLaunchAbstract(MessageLaunchAbstract):
 
             if self._deep_linking_launch_data:
                 launch_message.update(self._deep_linking_launch_data)
-
-            # OIDC Section 3.1.3.7(11): store sent nonce so the response can be
-            # verified against the value we originated (prevents replay/forgery).
-            nonce = launch_message.get("nonce")
-            if nonce:
-                sent_exp = int(time.time()) + self.id_token_expiration
-                self._platform_config.cache_set(f"sent_nonce:{nonce}", sent_exp)
 
             return {
                 "state": state,
