@@ -87,6 +87,8 @@ class BasicService(ABC):
             return func(**kwargs)
         except LtiServiceException as error:
             return Response(result=None, code=error.status_code, message=error.message)
+        except InvalidRequestData as error:
+            return Response(result=None, code=400, message=str(error))
 
 
 class AssignmentsGradesService(BasicService):

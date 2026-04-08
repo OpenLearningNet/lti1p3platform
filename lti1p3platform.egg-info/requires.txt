@@ -1,0 +1,12 @@
+requests
+PyJWT
+jwcrypto
+
+[Django]
+Django
+Jinja2
+django-stubs
+
+[fastapi]
+fastapi
+Jinja2

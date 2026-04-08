@@ -85,6 +85,11 @@ class LTI1P3PlatformConfAbstract(ABC):
 
     def __init__(self, **kwargs: t.Any) -> None:
         self._jwt: t.Dict[str, t.Any] = {}
+        # Default in-memory replay-detection cache. Entries are lazily evicted
+        # on the next cache_get() call. Override cache_get() / cache_set() with
+        # a shared backend (Redis, Memcached, Django cache, …) in production so
+        # the replay window works correctly across multiple processes/nodes.
+        self._cache: t.Dict[str, int] = {}
 
         self.init_platform_config(**kwargs)
 
@@ -92,7 +97,6 @@ class LTI1P3PlatformConfAbstract(ABC):
     def init_platform_config(self, **kwargs: t.Any) -> t.Any:
         pass
 
-    @abstractmethod
     def cache_get(self, key: str) -> t.Optional[int]:
         """
         Retrieve a replay-detection entry from the cache.
@@ -104,6 +108,11 @@ class LTI1P3PlatformConfAbstract(ABC):
         Returns:
             The stored expiration timestamp (UNIX seconds) if the entry
             exists and has not yet expired, or ``None`` otherwise.
+
+        The default implementation uses an in-process dictionary and is
+        suitable for single-process deployments and testing. Override this
+        in production with a shared backend so that replay detection works
+        correctly across multiple processes and nodes.
 
         Production implementations:
 
@@ -123,9 +132,12 @@ class LTI1P3PlatformConfAbstract(ABC):
             def cache_get(self, key):
                 return mc.get(key)
         """
-        raise NotImplementedError()
+        exp = self._cache.get(key)
+        if exp is None or exp < int(time.time()):
+            self._cache.pop(key, None)
+            return None
+        return exp
 
-    @abstractmethod
     def cache_set(self, key: str, exp: int) -> None:
         """
         Store a replay-detection entry in the cache.
@@ -135,6 +147,10 @@ class LTI1P3PlatformConfAbstract(ABC):
             exp: UNIX timestamp at which the associated token/nonce expires.
                  Implementations should derive the TTL from this value so
                  entries are evicted automatically.
+
+        The default implementation uses an in-process dictionary; entries are
+        evicted lazily on the next ``cache_get()`` call. Override in production
+        with a shared backend.
 
         Production implementations:
 
@@ -156,7 +172,7 @@ class LTI1P3PlatformConfAbstract(ABC):
                 ttl = max(1, exp - int(time.time()))
                 mc.set(key, exp, time=ttl)
         """
-        raise NotImplementedError()
+        self._cache[key] = exp
 
     @abstractmethod
     def get_registration_by_params(
