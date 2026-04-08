@@ -25,7 +25,11 @@ class LTIPlatformConf(LTI1P3PlatformConfAbstract):
             .set_oidc_login_url(platform_settings.oidc_login_url) \
             .set_tool_key_set_url(platform_settings.key_set_url) \
             .set_platform_public_key(platform_key_set.public_key) \
-            .set_platform_private_key(platform_key_set.private_key)
+            .set_platform_private_key(platform_key_set.private_key) \
+            .set_tool_redirect_uris([
+                "https://tool.example.com/lti/launch",
+                "https://tool.example.com/lti/deeplink",
+            ])
 
         self._registration = registration
 
@@ -40,6 +44,14 @@ def get_jwks(request, *args, **kwargs):
 
     return HttpResponseJSON(platform.get_jwks())
 ```
+
+> **Important – redirect URI allowlist:** `set_tool_redirect_uris()` is required.
+> It defines the allowlist of redirect URIs that the tool is permitted to supply
+> during an OIDC/LTI launch. The `redirect_uri` sent by the tool in the preflight
+> response must exactly match one of the registered values, otherwise the launch
+> will fail with an `invalid_request_uri` error and render a local error page
+> (not a redirect). All URIs must use HTTPS; plain HTTP is only accepted for
+> `localhost` / `127.0.0.1` / `::1` during development.
 
 ## OIDC initiate login
 
