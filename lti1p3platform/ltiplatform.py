@@ -87,7 +87,7 @@ class LTI1P3PlatformConfAbstract(ABC):
         self._jwt: t.Dict[str, t.Any] = {}
         # Default in-memory replay-detection cache. Entries are lazily evicted
         # on the next cache_get() call. Override cache_get() / cache_set() with
-        # a shared backend (Redis, Memcached, Django cache, …) in production so
+        # a shared backend (Redis, Memcached, Django cache, ...) in production so
         # the replay window works correctly across multiple processes/nodes.
         self._cache: t.Dict[str, int] = {}
 
