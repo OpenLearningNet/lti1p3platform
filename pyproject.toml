@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-Django=["Django", "Jinja2", "django-stubs"]
+Django=["Django", "Jinja2", "django-stubs", "python-dateutil"]
 fastapi=["fastapi", "Jinja2"]
 
 [tool.poetry]
@@ -35,6 +35,7 @@ requests = {version = "^2.24.0", extras = ["security"]}
 jwcrypto = "^1.4.2"
 
 [tool.poetry.dev-dependencies]
+python-dateutil = "^2.8.2"
 mypy = "^1.1.1"
 pytest = "^7.2.2"
 pylint = "^2.17.1"
