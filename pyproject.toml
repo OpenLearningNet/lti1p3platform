@@ -13,9 +13,9 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "requests",
-    "PyJWT",
-    "jwcrypto"
+    "requests[security]>=2.24.0",
+    "PyJWT>=1.7.1",
+    "jwcrypto>=1.4.2"
 ]
 
 [project.optional-dependencies]
@@ -33,7 +33,6 @@ python = "^3.8"
 PyJWT = "^1.7.1"
 requests = {version = "^2.24.0", extras = ["security"]}
 jwcrypto = "^1.4.2"
-python-dateutil = "^2.8.2"
 
 [tool.poetry.dev-dependencies]
 mypy = "^1.1.1"
