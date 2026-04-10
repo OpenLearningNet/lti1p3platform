@@ -582,8 +582,22 @@ def test_handle_get_results_empty(
 def test_handle_get_results_after_score_submitted(
     platform: PlatformConf, ags_token: str
 ) -> None:
-    ags = _make_ags(platform, ags_token)
-    ags._scores[LINEITEM_URL] = {"userId": 1, "scoreGiven": 80.0}  # type: ignore[assignment]
+    """Results endpoint reflects a score submitted via handle_update_score."""
+    score_data: TScore = {
+        "userId": 42,
+        "scoreGiven": 80.0,
+        "scoreMaximum": 100.0,
+        "activityProgress": "Completed",  # type: ignore[typeddict-item]
+        "gradingProgress": "FullyGraded",  # type: ignore[typeddict-item]
+    }
+    # Set up state via the public service API (POST score)
+    ags = _make_ags(platform, ags_token, method="POST", json=score_data)
+    ags.handle_resp(ags.handle_update_score, line_item_id=LINEITEM_URL)
+    # Switch to a GET request and query results
+    ags.request = make_request(  # type: ignore[assignment]
+        method="GET",
+        headers={"Authorization": f"Bearer {ags_token}"},
+    )
     resp = ags.handle_resp(ags.handle_get_results, line_item_id=LINEITEM_URL)
     assert resp.code == 200
     assert len(resp.result["content"]) == 1
