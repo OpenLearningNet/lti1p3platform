@@ -20,9 +20,9 @@ You also need to add platform config to the tool config file [game.json](https:/
         "https://example.com": [{
             "default": true,
             "client_id": "12345",
-            "auth_login_url": "http://127.0.0.1:9002/authorization",
-            "auth_token_url": "http://127.0.0.1:9002/access_token",
-            "auth_audience": "http://127.0.0.1:9002/access_token",
+            "auth_login_url": "https://127.0.0.1:9002/authorization",
+            "auth_token_url": "https://127.0.0.1:9002/access_token",
+            "auth_audience": "https://127.0.0.1:9002/access_token",
             "key_set_url": "https://127.0.0.1:9002/jwks",
             "key_set": null,
             "private_key_file": "private.key",

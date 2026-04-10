@@ -23,9 +23,5 @@ class FastapiMessageLaunch(MessageLaunchAbstract):
     def get_redirect(self, url: str) -> RedirectResponse:
         return RedirectResponse(url)
 
-    def authenticate_end_user(self, preflight_response: t.Dict[str, t.Any]) -> None:
-        # Hook for platform/session auth checks; override in app integrations.
-        _ = preflight_response
-
     def render_error_page(self, message: str, status_code: int) -> PlainTextResponse:
         return PlainTextResponse(message, status_code=status_code)

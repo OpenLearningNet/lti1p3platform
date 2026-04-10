@@ -98,7 +98,7 @@ class OIDCLoginAbstract(ABC):
             launch_url = self._registration.get_launch_url()
 
             if not launch_url:
-                raise exceptions.InvalidRequestUri(
+                raise exceptions.PlatformNotReadyException(
                     "Launch URL is not configured in registration"
                 )
             self.set_launch_url(launch_url)
@@ -194,20 +194,17 @@ class OIDCLoginAbstract(ABC):
         launch_url = self.get_launch_url()
 
         if not self._registration.get_iss():
-            raise exceptions.InvalidRequestData(
+            raise exceptions.PlatformNotReadyException(
                 "Issuer (iss) is not configured in registration"
             )
 
-        if not launch_url:
-            raise exceptions.InvalidRequestData("Launch URL is not configured")
-
         if not self.get_lti_message_hint():
-            raise exceptions.InvalidRequestData(
+            raise exceptions.PlatformNotReadyException(
                 "LTI message hint (lti_message_hint) is not set"
             )
 
         if not user_id:
-            raise exceptions.InvalidRequestData(
+            raise exceptions.PlatformNotReadyException(
                 "User ID is required for preflight request"
             )
 

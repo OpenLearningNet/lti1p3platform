@@ -9,6 +9,8 @@ Covers:
   handle_update_score, handle_get_results (success, not-found, pagination)
 - NamesRoleProvisioningService: clean_members, handle_get_members
 """
+# pylint: disable=redefined-outer-name,protected-access,too-few-public-methods
+
 import time
 import typing as t
 from unittest.mock import patch
@@ -43,9 +45,7 @@ AGS_SCOPE_RESULT_READONLY = (
     "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly"
 )
 AGS_SCOPE_SCORE = "https://purl.imsglobal.org/spec/lti-ags/scope/score"
-NRPS_SCOPE = (
-    "https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"
-)
+NRPS_SCOPE = "https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"
 
 LINEITEMS_URL = "https://platform.example/ags/lineitems"
 LINEITEM_URL = f"{LINEITEMS_URL}/1"
@@ -117,7 +117,7 @@ class _AGSImpl(AssignmentsGradesService):
         self,
         request: MockRequest,
         platform_config: PlatformConf,
-        **kwargs: t.Any,
+        **_kwargs: t.Any,
     ) -> None:
         super().__init__(
             request,  # type: ignore[arg-type]
@@ -126,9 +126,13 @@ class _AGSImpl(AssignmentsGradesService):
             lineitem_url=LINEITEM_URL,
             allow_creating_lineitems=True,
         )
-        self._lineitems: t.List[TLineItem] = [dict(_INITIAL_LINEITEM)]  # type: ignore[misc]
+        self._lineitems: t.List[TLineItem] = [
+            dict(_INITIAL_LINEITEM)
+        ]  # type: ignore[misc]
         self._scores: t.Dict[str, TScore] = {}
 
+    # pylint: disable=too-many-arguments
+    # Signature must match the abstract service API.
     def find_lineitems(
         self,
         page: int = 1,
@@ -140,17 +144,21 @@ class _AGSImpl(AssignmentsGradesService):
     ) -> t.Any:
         results = list(self._lineitems)
         if tag:
-            results = [li for li in results if li.get("tag") == tag]
+            results = [
+                line_item for line_item in results if line_item.get("tag") == tag
+            ]
         has_next = False
         if limit and len(results) > limit:
             results = results[:limit]
             has_next = True
         return {"content": results, "has_next": has_next}
 
+    # pylint: enable=too-many-arguments
+
     def find_lineitem(self, line_item_id: str) -> TLineItem:
-        for li in self._lineitems:
-            if li.get("id") == line_item_id:
-                return li
+        for line_item in self._lineitems:
+            if line_item.get("id") == line_item_id:
+                return line_item
         raise LineItemNotFoundException
 
     def create_lineitem(self, creation_data: TLineItem) -> TLineItem:
@@ -161,25 +169,27 @@ class _AGSImpl(AssignmentsGradesService):
 
     def update_lineitem(self, update_data: TLineItem) -> TLineItem:
         item_id = update_data.get("id")
-        for li in self._lineitems:
-            if li.get("id") == item_id:
-                li.update(update_data)  # type: ignore[typeddict-item]
-                return li
+        for line_item in self._lineitems:
+            if line_item.get("id") == item_id:
+                line_item.update(update_data)  # type: ignore[typeddict-item]
+                return line_item
         raise LineItemNotFoundException
 
     def delete_lineitem(self, line_item_id: str) -> None:
-        for li in list(self._lineitems):
-            if li.get("id") == line_item_id:
-                self._lineitems.remove(li)
+        for line_item in list(self._lineitems):
+            if line_item.get("id") == line_item_id:
+                self._lineitems.remove(line_item)
                 return
         raise LineItemNotFoundException
 
     def update_score(self, line_item_id: str, score: TScore) -> UpdateScoreStatus:
-        for li in self._lineitems:
-            if li.get("id") == line_item_id:
+        for line_item in self._lineitems:
+            if line_item.get("id") == line_item_id:
                 is_new = line_item_id not in self._scores
                 self._scores[line_item_id] = score
-                return UpdateScoreStatus.CREATED if is_new else UpdateScoreStatus.SUCCESS
+                if is_new:
+                    return UpdateScoreStatus.CREATED
+                return UpdateScoreStatus.SUCCESS
         raise LineItemNotFoundException
 
     def get_results(
@@ -189,8 +199,8 @@ class _AGSImpl(AssignmentsGradesService):
         limit: t.Optional[int] = None,
         user_id: t.Optional[str] = None,
     ) -> t.Any:
-        for li in self._lineitems:
-            if li.get("id") == line_item_id:
+        for line_item in self._lineitems:
+            if line_item.get("id") == line_item_id:
                 score = self._scores.get(line_item_id)
                 results = [score] if score else []
                 return {"content": results, "has_next": False}
@@ -273,7 +283,11 @@ def _make_nrps(
         headers={"Authorization": f"Bearer {token}"},
         get_data=get_data,
     )
-    return _NRPSImpl(req, platform, context_memberships_url=MEMBERSHIPS_URL)  # type: ignore[arg-type]
+    return _NRPSImpl(
+        req,
+        platform,
+        context_memberships_url=MEMBERSHIPS_URL,
+    )  # type: ignore[arg-type]
 
 
 # ===========================================================================
@@ -287,7 +301,9 @@ class _ConcreteBasicService(BasicService):
 
 def test_handle_resp_returns_function_result() -> None:
     svc = _ConcreteBasicService()
-    resp = svc.handle_resp(lambda: Response(result={"ok": True}, code=200, message="ok"))
+    resp = svc.handle_resp(
+        lambda: Response(result={"ok": True}, code=200, message="ok")
+    )
     assert resp.code == 200
     assert resp.result == {"ok": True}
 
@@ -445,22 +461,16 @@ def test_handle_create_lineitem_success(platform: PlatformConf) -> None:
 # ===========================================================================
 
 
-def test_handle_get_lineitem_success(
-    platform: PlatformConf, ags_token: str
-) -> None:
+def test_handle_get_lineitem_success(platform: PlatformConf, ags_token: str) -> None:
     ags = _make_ags(platform, ags_token)
     resp = ags.handle_resp(ags.handle_get_lineitem, line_item_id=LINEITEM_URL)
     assert resp.code == 200
     assert resp.result["label"] == "Test Assignment"
 
 
-def test_handle_get_lineitem_not_found(
-    platform: PlatformConf, ags_token: str
-) -> None:
+def test_handle_get_lineitem_not_found(platform: PlatformConf, ags_token: str) -> None:
     ags = _make_ags(platform, ags_token)
-    resp = ags.handle_resp(
-        ags.handle_get_lineitem, line_item_id=f"{LINEITEMS_URL}/999"
-    )
+    resp = ags.handle_resp(ags.handle_get_lineitem, line_item_id=f"{LINEITEMS_URL}/999")
     assert resp.code == 404
 
 
@@ -471,9 +481,7 @@ def test_handle_get_lineitem_not_found(
 
 def test_handle_update_lineitem_success(platform: PlatformConf) -> None:
     token = make_bearer_token(AGS_SCOPE_LINEITEM)
-    ags = _make_ags(
-        platform, token, method="PUT", json={"label": "Updated Label"}
-    )
+    ags = _make_ags(platform, token, method="PUT", json={"label": "Updated Label"})
     resp = ags.handle_resp(ags.handle_update_lineitem, line_item_id=LINEITEM_URL)
     assert resp.code == 200
     assert resp.result["label"] == "Updated Label"
@@ -559,9 +567,7 @@ def test_handle_update_score_not_found(platform: PlatformConf) -> None:
     ags = _make_ags(
         platform, token, method="POST", json={"userId": 1, "scoreGiven": 5.0}
     )
-    resp = ags.handle_resp(
-        ags.handle_update_score, line_item_id=f"{LINEITEMS_URL}/999"
-    )
+    resp = ags.handle_resp(ags.handle_update_score, line_item_id=f"{LINEITEMS_URL}/999")
     assert resp.code == 404
 
 
@@ -570,9 +576,7 @@ def test_handle_update_score_not_found(platform: PlatformConf) -> None:
 # ===========================================================================
 
 
-def test_handle_get_results_empty(
-    platform: PlatformConf, ags_token: str
-) -> None:
+def test_handle_get_results_empty(platform: PlatformConf, ags_token: str) -> None:
     ags = _make_ags(platform, ags_token)
     resp = ags.handle_resp(ags.handle_get_results, line_item_id=LINEITEM_URL)
     assert resp.code == 200
@@ -603,13 +607,9 @@ def test_handle_get_results_after_score_submitted(
     assert len(resp.result["content"]) == 1
 
 
-def test_handle_get_results_not_found(
-    platform: PlatformConf, ags_token: str
-) -> None:
+def test_handle_get_results_not_found(platform: PlatformConf, ags_token: str) -> None:
     ags = _make_ags(platform, ags_token)
-    resp = ags.handle_resp(
-        ags.handle_get_results, line_item_id=f"{LINEITEMS_URL}/999"
-    )
+    resp = ags.handle_resp(ags.handle_get_results, line_item_id=f"{LINEITEMS_URL}/999")
     assert resp.code == 404
 
 
@@ -666,9 +666,7 @@ def test_clean_members_missing_roles_raises(
         nrps.clean_members([{"user_id": "u1"}])
 
 
-def test_clean_members_multiple_valid(
-    platform: PlatformConf, nrps_token: str
-) -> None:
+def test_clean_members_multiple_valid(platform: PlatformConf, nrps_token: str) -> None:
     nrps = _make_nrps(platform, nrps_token)
     members = [
         {"user_id": "u1", "roles": ["Learner"]},
@@ -685,9 +683,7 @@ def test_clean_members_multiple_valid(
 # ===========================================================================
 
 
-def test_handle_get_members_success(
-    platform: PlatformConf, nrps_token: str
-) -> None:
+def test_handle_get_members_success(platform: PlatformConf, nrps_token: str) -> None:
     nrps = _make_nrps(platform, nrps_token)
     resp = nrps.handle_resp(nrps.handle_get_members)
     assert resp.code == 200
@@ -733,7 +729,11 @@ def test_handle_get_members_pagination_next_link(
 
 def test_handle_get_members_missing_auth(platform: PlatformConf) -> None:
     req = make_request(method="GET", headers={})
-    nrps = _NRPSImpl(req, platform, context_memberships_url=MEMBERSHIPS_URL)  # type: ignore[arg-type]
+    nrps = _NRPSImpl(
+        req,
+        platform,
+        context_memberships_url=MEMBERSHIPS_URL,
+    )  # type: ignore[arg-type]
     resp = nrps.handle_resp(nrps.handle_get_members)
     assert resp.code == 401
 

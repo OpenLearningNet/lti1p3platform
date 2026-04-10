@@ -27,9 +27,5 @@ class DjangoLTI1P3MessageLaunch(LTIAdvantageMessageLaunchAbstract):
     def get_redirect(self, url: str) -> HttpResponseRedirect:
         return HttpResponseRedirect(url)
 
-    def authenticate_end_user(self, preflight_response: t.Dict[str, t.Any]) -> None:
-        # Hook for platform/session auth checks; override in app integrations.
-        _ = preflight_response
-
     def render_error_page(self, message: str, status_code: int) -> HttpResponse:
         return HttpResponse(message, status=status_code)

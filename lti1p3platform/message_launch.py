@@ -508,17 +508,17 @@ class MessageLaunchAbstract(ABC):
 
         redirect_uri = preflight_response.get("redirect_uri")
         registered_redirect_uris = self._registration.get_tool_redirect_uris()
-        if registered_redirect_uris and redirect_uri not in registered_redirect_uris:
+        if not registered_redirect_uris or redirect_uri not in registered_redirect_uris:
             raise exceptions.InvalidRequestUri(
                 f"redirect_uri '{redirect_uri}' not registered for this tool"
             )
 
         parsed_redirect_uri = urlparse(redirect_uri)
-        scheme = str(parsed_redirect_uri.scheme)
-        if scheme != "https":
-            is_allowed_loopback = scheme == "http" and str(
-                parsed_redirect_uri.hostname
-            ) in {"localhost", "127.0.0.1", "::1"}
+        if parsed_redirect_uri.scheme != "https":
+            is_allowed_loopback = (
+                parsed_redirect_uri.scheme == "http"
+                and parsed_redirect_uri.hostname in {"localhost", "127.0.0.1", "::1"}
+            )
             if not is_allowed_loopback:
                 raise exceptions.InvalidRequestUri(
                     "redirect_uri must use HTTPS (except localhost for development)"
@@ -554,17 +554,6 @@ class MessageLaunchAbstract(ABC):
         )  # pylint: disable=line-too-long
 
         return {"state": state, "id_token": id_token}
-
-    @abstractmethod
-    def authenticate_end_user(self, preflight_response: t.Dict[str, t.Any]) -> None:
-        """
-        Ensure the end user is authenticated before issuing the launch response.
-
-        Platform/framework implementations should integrate with their auth layer
-        (session, SSO, middleware, etc.) and raise an exception such as
-        LoginRequiredException if authentication is required.
-        """
-        raise NotImplementedError
 
     @abstractmethod
     def render_launch_form(
@@ -624,9 +613,6 @@ class MessageLaunchAbstract(ABC):
 
             # validate preflight request response from tool
             self.validate_preflight_response(preflight_response)
-
-            # Ensure user authentication is satisfied before issuing id_token.
-            self.authenticate_end_user(preflight_response)
 
             self.prepare_launch(preflight_response)
 

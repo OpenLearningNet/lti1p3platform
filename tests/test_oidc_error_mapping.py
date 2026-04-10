@@ -34,9 +34,6 @@ class _DummyMessageLaunch(MessageLaunchAbstract):
     def get_redirect(self, url: str) -> t.Any:
         return {"type": "redirect", "url": url}
 
-    def authenticate_end_user(self, preflight_response: t.Dict[str, t.Any]) -> None:
-        _ = preflight_response
-
     def render_error_page(self, message: str, status_code: int) -> t.Any:
         return {"type": "error_page", "message": message, "status_code": status_code}
 
@@ -174,11 +171,11 @@ def test_validate_preflight_response_invalid_redirect_uri_raises_invalid_request
         )
 
 
-def test_prepare_preflight_url_missing_message_hint_raises_invalid_request():
+def test_prepare_preflight_url_missing_message_hint_raises_platform_not_ready():
     login = _make_oidc_login()
     login._lti_message_hint = None
 
-    with pytest.raises(InvalidRequestData, match="lti_message_hint"):
+    with pytest.raises(PlatformNotReadyException, match="lti_message_hint"):
         login.prepare_preflight_url("user-123")
 
 

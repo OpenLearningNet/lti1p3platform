@@ -274,7 +274,7 @@ class LTI1P3PlatformConfAbstract(ABC):
             pass
 
         try:
-            resp = requests.get(key_set_url, timeout=5)
+            resp = requests.get(key_set_url, timeout=5, allow_redirects=False)
         except requests.exceptions.RequestException as exc:
             raise LtiException(
                 "Error during fetch URL " + key_set_url + ": " + str(exc)
