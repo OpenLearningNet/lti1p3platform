@@ -30,6 +30,7 @@ from lti1p3platform.exceptions import (
     InvalidJwtToken,
     InvalidKeySetUrl,
     LtiException,
+    PlatformNotReadyException,
     MissingRequiredClaim,
     UnsupportedGrantType,
     LtiDeepLinkingResponseException,
@@ -741,7 +742,7 @@ def test_assertion_no_client_id_raises():
         "exp": int(time.time()) + 60,
         "jti": str(uuid.uuid4()),
     }
-    with pytest.raises(LtiException, match="Client ID is not set"):
+    with pytest.raises(PlatformNotReadyException, match="Client ID is not set"):
         platform._validate_tool_access_token_assertion(
             decoded, PLATFORM_CONFIG["access_token_url"]
         )
@@ -755,7 +756,7 @@ def test_assertion_no_client_id_raises():
 def test_get_access_token_no_audience_raises():
     platform = _NoAudiencePlatform()
     encoded_jwt = _make_valid_assertion()
-    with pytest.raises(LtiException, match="No expected audience configured"):
+    with pytest.raises(PlatformNotReadyException, match="Access token URL"):
         platform.get_access_token(
             {
                 "grant_type": "client_credentials",

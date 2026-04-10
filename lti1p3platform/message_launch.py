@@ -28,14 +28,19 @@ class MessageLaunchAbstract(ABC):
     """
     Abstract base class for LTI 1.3 Message Launch handling
 
-    LTI 1.3 Launch Process (simplified):
+    LTI 1.3 Launch Process (end-to-end):
     1. User clicks "launch tool" in platform
-    2. Platform creates LTI message with user/content context (JWT)
-    3. Platform sends POST with id_token + state to tool's launch_url
-    4. Tool validates JWT signature and claims
-    5. Tool displays interface with user's context
+    2. Platform redirects browser to tool's OIDC login endpoint
+    3. Tool validates login initiation request and redirects to platform auth endpoint
+    4. Platform validates authorization request and prepares OIDC response
+    5. Platform authenticates user if needed
+    6. Platform sends POST with id_token + state to tool's launch_url
+    7. Tool validates JWT signature and claims
+    8. Tool displays interface with user's context
 
     This class handles:
+    - Step 5 via an authentication hook implemented by the platform layer
+    - Step 6 on the platform side (build and POST id_token + state)
     - Receiving and parsing launch requests
     - Validating JWT signatures and claims
     - Extracting LTI claims (user roles, resource context, etc.)
@@ -502,17 +507,18 @@ class MessageLaunchAbstract(ABC):
             raise exceptions.InvalidScopeException("Invalid scope: expected 'openid'")
 
         redirect_uri = preflight_response.get("redirect_uri")
-        if redirect_uri not in (self._registration.get_tool_redirect_uris() or []):
+        registered_redirect_uris = self._registration.get_tool_redirect_uris()
+        if registered_redirect_uris and redirect_uri not in registered_redirect_uris:
             raise exceptions.InvalidRequestUri(
                 f"redirect_uri '{redirect_uri}' not registered for this tool"
             )
 
         parsed_redirect_uri = urlparse(redirect_uri)
-        if parsed_redirect_uri.scheme != "https":
-            is_allowed_loopback = (
-                parsed_redirect_uri.scheme == "http"
-                and parsed_redirect_uri.hostname in {"localhost", "127.0.0.1", "::1"}
-            )
+        scheme = str(parsed_redirect_uri.scheme)
+        if scheme != "https":
+            is_allowed_loopback = scheme == "http" and str(
+                parsed_redirect_uri.hostname
+            ) in {"localhost", "127.0.0.1", "::1"}
             if not is_allowed_loopback:
                 raise exceptions.InvalidRequestUri(
                     "redirect_uri must use HTTPS (except localhost for development)"
@@ -548,6 +554,17 @@ class MessageLaunchAbstract(ABC):
         )  # pylint: disable=line-too-long
 
         return {"state": state, "id_token": id_token}
+
+    @abstractmethod
+    def authenticate_end_user(self, preflight_response: t.Dict[str, t.Any]) -> None:
+        """
+        Ensure the end user is authenticated before issuing the launch response.
+
+        Platform/framework implementations should integrate with their auth layer
+        (session, SSO, middleware, etc.) and raise an exception such as
+        LoginRequiredException if authentication is required.
+        """
+        raise NotImplementedError
 
     @abstractmethod
     def render_launch_form(
@@ -607,6 +624,9 @@ class MessageLaunchAbstract(ABC):
 
             # validate preflight request response from tool
             self.validate_preflight_response(preflight_response)
+
+            # Ensure user authentication is satisfied before issuing id_token.
+            self.authenticate_end_user(preflight_response)
 
             self.prepare_launch(preflight_response)
 

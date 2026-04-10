@@ -1,4 +1,5 @@
 from django.http import JsonResponse
+from http import HTTPStatus
 from lti1p3platform.response import Response, generate_next_link
 
 
@@ -18,6 +19,20 @@ def wrap_json_resp(resp: Response) -> JsonResponse:
 
         return response
     else:
+        try:
+            title = HTTPStatus(resp.code).phrase
+        except ValueError:
+            title = "Error"
+
+        problem_type = resp.problem_type or "about:blank"
+
         return JsonResponse(
-            {"error": resp.message}, status=resp.code, content_type=resp.media_type
+            {
+                "type": problem_type,
+                "title": title,
+                "status": resp.code,
+                "detail": resp.message,
+            },
+            status=resp.code,
+            content_type="application/problem+json",
         )

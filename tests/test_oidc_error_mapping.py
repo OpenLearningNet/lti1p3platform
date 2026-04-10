@@ -34,6 +34,9 @@ class _DummyMessageLaunch(MessageLaunchAbstract):
     def get_redirect(self, url: str) -> t.Any:
         return {"type": "redirect", "url": url}
 
+    def authenticate_end_user(self, preflight_response: t.Dict[str, t.Any]) -> None:
+        _ = preflight_response
+
     def render_error_page(self, message: str, status_code: int) -> t.Any:
         return {"type": "error_page", "message": message, "status_code": status_code}
 
@@ -261,7 +264,9 @@ def test_lti_launch_renders_page_when_validation_error_is_not_redirectable():
             "json": None,
         }
     )
-    launch = _DummyMessageLaunch(request, PlatformConf())
+    platform = PlatformConf()
+    platform.get_registration().set_tool_redirect_uris([PLATFORM_CONFIG["launch_url"]])
+    launch = _DummyMessageLaunch(request, platform)
 
     response = launch.lti_launch()
 
@@ -277,3 +282,25 @@ def test_initiate_login_renders_page_for_internal_server_errors():
 
     assert response["type"] == "error_page"
     assert response["status_code"] == 500
+
+
+def test_get_error_response_maps_value_error_to_invalid_request_status_code():
+    launch = _make_message_launch()
+
+    response = launch.get_error_response(ValueError("bad input"))
+
+    assert response["type"] == "error_page"
+    assert response["status_code"] == 400
+
+
+def test_get_error_response_redirects_value_error_as_invalid_request():
+    launch = _make_message_launch()
+
+    response = launch.get_error_response(
+        ValueError("bad input"),
+        redirect_uri=PLATFORM_CONFIG["launch_url"],
+        state="state-123",
+    )
+
+    assert response["type"] == "redirect"
+    assert "error=invalid_request" in response["url"]

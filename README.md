@@ -122,8 +122,19 @@ After all verifications, the platform will generate a `id_token`. The platform e
 
 ```python
 from lti1p3platform.message_launch import MessageLaunchAbstract
+from lti1p3platform.exceptions import LoginRequiredException
 
 class LTI1p3MessageLaunch(MessageLaunchAbstract):
+    def authenticate_end_user(self, preflight_response):
+        """
+        Required auth hook.
+        Integrate with your session/SSO layer and raise LoginRequiredException
+        if the current browser user is not authenticated.
+        """
+        user = getattr(self._request, "user", None)
+        if not user or not getattr(user, "is_authenticated", False):
+            raise LoginRequiredException("User authentication required")
+
     def render_launch_form(self, launch_data, **kwargs):
         """
         This will be invoked in the last step of `lti_launch`.
@@ -164,6 +175,12 @@ def lti_resource_link_launch(request, *args, **kwargs):
 
     return message_launch.lti_launch(*args, **kwargs)
 ```
+
+> **Authentication hook requirement:** `MessageLaunchAbstract` now requires
+> `authenticate_end_user(preflight_response)`. This is called during
+> `lti_launch()` after request validation and before the `id_token` is issued.
+> Raise `LoginRequiredException` (or another OAuth/OIDC exception) when
+> authentication is not satisfied.
 
 ### Launch error response behavior
 

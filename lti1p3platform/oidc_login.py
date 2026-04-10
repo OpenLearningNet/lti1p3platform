@@ -35,7 +35,8 @@ class OIDCLoginAbstract(ABC):
     7. Tool validates id_token JWT signature and claims
     8. Tool grants access to user with appropriate context
 
-    This class handles Step 2 (prepare the login request) and Step 3 (initiate redirect).
+    This class handles Step 2 (platform initiates OIDC login by redirecting to
+    the tool's OIDC login endpoint).
 
     OpenID Connect 3rd-Party-Initiated Login Details:
     - 'iss' (Issuer): Identifies the platform doing the login
@@ -108,8 +109,8 @@ class OIDCLoginAbstract(ABC):
         """
         Prepare OIDC preflight url for 3rd-party-initiated login
 
-        This creates the URL that redirects the user to the platform's OIDC login endpoint.
-        This is Step 2 in the LTI launch flow.
+        This builds the URL for the tool's OIDC login initiation endpoint.
+        The learning platform sends the browser to this URL during Step 2.
 
         URL Parameters:
         ===============
@@ -193,12 +194,12 @@ class OIDCLoginAbstract(ABC):
         launch_url = self.get_launch_url()
 
         if not self._registration.get_iss():
-            raise exceptions.PlatformNotReadyException(
+            raise exceptions.InvalidRequestData(
                 "Issuer (iss) is not configured in registration"
             )
 
         if not launch_url:
-            raise exceptions.InvalidRequestUri("Launch URL is not configured")
+            raise exceptions.InvalidRequestData("Launch URL is not configured")
 
         if not self.get_lti_message_hint():
             raise exceptions.InvalidRequestData(
@@ -273,14 +274,7 @@ class OIDCLoginAbstract(ABC):
     def get_error_response(
         self,
         error: Exception,
-        redirect_uri: t.Optional[str] = None,
-        state: t.Optional[str] = None,
     ) -> t.Any:
-        if redirect_uri and exceptions.get_error_response_behavior(error) == "redirect":
-            return self.get_redirect(
-                self.build_error_redirect_url(redirect_uri, error, state)
-            )
-
         return self.render_error_page(
             str(error),
             exceptions.get_error_page_status_code(error),
@@ -288,20 +282,19 @@ class OIDCLoginAbstract(ABC):
 
     def initiate_login(self, user_id: str) -> t.Any:
         """
-        Initiate OIDC login by redirecting to platform's OIDC login endpoint
+        Prepare the tool login initiation URL and redirect the browser to it
 
         This is the main entry point for starting an LTI launch.
 
         Process:
-        1. Prepare login URL with all required parameters (iss, client_id, target_link_uri, etc.)
-        2. Redirect user's browser to platform's login endpoint
+        1. Prepare the tool login URL with required parameters (iss, client_id,
+                target_link_uri, login_hint, lti_message_hint, etc.)
+        2. Return an HTTP redirect response for that URL
 
-        The platform's login endpoint will:
+        After this redirect reaches the tool login endpoint, the tool will:
         1. Validate all parameters
-        2. Authenticate user if needed
-        3. Generate state + nonce for CSRF/replay protection
-        4. Redirect to authorization endpoint
-        5. Eventually redirect back to tool's callback with id_token
+        2. Generate state + nonce for CSRF/replay protection
+        3. Redirect to the platform authorization endpoint
 
         This is an abstract method; implementing frameworks (Django, FastAPI, Flask)
         override this to return appropriate HTTP redirects.
@@ -309,12 +302,9 @@ class OIDCLoginAbstract(ABC):
         Returns:
             HTTP redirect response (specific to framework)
 
-        Raises:
-            PreflightRequestValidationException: If configuration validation fails
         """
         try:
             preflight_url = self.prepare_preflight_url(user_id)
             return self.get_redirect(preflight_url)
         except Exception as err:  # pylint: disable=broad-exception-caught
-            launch_url = self._launch_url or self._registration.get_launch_url()
-            return self.get_error_response(err, redirect_uri=launch_url)
+            return self.get_error_response(err)

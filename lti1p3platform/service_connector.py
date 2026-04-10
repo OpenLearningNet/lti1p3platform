@@ -42,7 +42,7 @@ def authenticate(
             service: "AssignmentsGradesService", *args: t.Any, **kwargs: t.Any
         ) -> Response:
             if service.request is None:
-                raise LtiServiceException("Request context not available", 400)
+                raise LtiServiceException("Request context not available", 500)
 
             auth = service.request.headers.get("Authorization", "").split()
 
@@ -89,6 +89,8 @@ class BasicService(ABC):
             return Response(result=None, code=error.status_code, message=error.message)
         except InvalidRequestData as error:
             return Response(result=None, code=400, message=str(error))
+        except Exception:  # pylint: disable=broad-exception-caught
+            return Response(result=None, code=500, message="Internal server error")
 
 
 class AssignmentsGradesService(BasicService):

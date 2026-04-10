@@ -360,7 +360,9 @@ class LTI1P3PlatformConfAbstract(ABC):
                     jwk_obj = JWK.from_json(key_json)
                     return jwk_obj.export_to_pem()  # type: ignore
                 except (ValueError, TypeError) as error:
-                    raise LtiException("Can't convert JWT key to PEM format") from error
+                    raise InvalidJwtToken(
+                        "Unable to parse JWT key from tool key set"
+                    ) from error
 
         # Could not find public key with a matching kid and alg.
         raise InvalidJwtToken("Unable to find public key")
@@ -557,7 +559,7 @@ class LTI1P3PlatformConfAbstract(ABC):
 
         client_id = self._registration.get_client_id()
         if not client_id:
-            raise LtiException("Client ID is not set")
+            raise exceptions.PlatformNotReadyException("Client ID is not set")
 
         if decoded_assertion["iss"] != client_id:
             raise InvalidClientAssertion("Invalid client_assertion iss")
@@ -603,8 +605,8 @@ class LTI1P3PlatformConfAbstract(ABC):
            - grant_type = "client_credentials"
            - client_assertion = signed JWT (tool's credentials)
            - client_assertion_type = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
-                     - scope = requested platform capabilities
-                         (e.g., "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly")
+           - scope = requested platform capabilities
+            (e.g., "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly")
 
         2. Platform validates:
            - client_assertion_type is exactly the specified Bearer assertion type
@@ -632,17 +634,17 @@ class LTI1P3PlatformConfAbstract(ABC):
         - Signed tokens can be verified offline without hitting a database
 
         Reference:
-                - 1EdTech Security Framework:
-                    https://www.imsglobal.org/spec/security/v1p0/#securing_web_services
+        - 1EdTech Security Framework:
+            https://www.imsglobal.org/spec/security/v1p0/#securing_web_services
         - LTI Advantage Services (AGS spec): https://www.imsglobal.org/spec/lti-ags/v2p0/
 
         Parameters:
-            token_request_data: Dict of form parameters:
-                - grant_type: Must be "client_credentials"
-                - client_assertion: Signed JWT from tool
-                                - client_assertion_type: Must be
-                                    "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
-                - scope: Space-separated list of requested scopes
+        token_request_data: Dict of form parameters:
+            - grant_type: Must be "client_credentials"
+            - client_assertion: Signed JWT from tool
+                            - client_assertion_type: Must be
+                                "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
+            - scope: Space-separated list of requested scopes
 
         Returns:
             AccessTokenResponse: Dictionary with 'access_token', 'expires_in', 'token_type', 'scope'
@@ -679,7 +681,9 @@ class LTI1P3PlatformConfAbstract(ABC):
 
         expected_audience = self._registration.get_access_token_url()
         if not expected_audience:
-            raise LtiException("No expected audience configured")
+            raise exceptions.PlatformNotReadyException(
+                "Access token URL is not configured"
+            )
 
         # Validate JWT token
         decoded_assertion = self.tool_validate_and_decode(

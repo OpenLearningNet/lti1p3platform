@@ -15,10 +15,25 @@ REDIRECT_ERROR_CODES = {
 
 
 ERROR_PAGE_STATUS_CODES = {
+    error_codes.INVALID_REQUEST: 400,
+    error_codes.UNAUTHORIZED_CLIENT: 400,
+    error_codes.ACCESS_DENIED: 403,
+    error_codes.UNSUPPORTED_RESPONSE_TYPE: 400,
+    error_codes.INVALID_SCOPE: 400,
+    error_codes.INVALID_CLIENT: 401,
+    error_codes.INVALID_GRANT: 400,
+    error_codes.UNSUPPORTED_GRANT_TYPE: 400,
+    error_codes.INVALID_TOKEN: 401,
+    error_codes.INSUFFICIENT_SCOPE: 403,
+    error_codes.INTERACTION_REQUIRED: 400,
+    error_codes.LOGIN_REQUIRED: 401,
+    error_codes.ACCOUNT_SELECTION_REQUIRED: 400,
+    error_codes.CONSENT_REQUIRED: 400,
     error_codes.INVALID_REQUEST_URI: 400,
     error_codes.INVALID_REQUEST_OBJECT: 400,
     error_codes.REQUEST_NOT_SUPPORTED: 400,
     error_codes.REQUEST_URI_NOT_SUPPORTED: 400,
+    error_codes.REGISTRATION_NOT_SUPPORTED: 400,
     error_codes.SERVER_ERROR: 500,
     error_codes.TEMPORARILY_UNAVAILABLE: 503,
 }
@@ -27,6 +42,9 @@ ERROR_PAGE_STATUS_CODES = {
 def get_error_code(error: object) -> str:
     if isinstance(error, str):
         return error
+
+    if isinstance(error, (ValueError, TypeError)):
+        return error_codes.INVALID_REQUEST
 
     code = getattr(error, "code", None)
     if isinstance(code, str):
