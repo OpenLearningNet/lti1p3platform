@@ -288,8 +288,12 @@ class LTI1P3PlatformConfAbstract(ABC):
                         or addr.is_reserved
                         or addr.is_multicast
                     ):
-                        raise InvalidKeySetUrl
+                        raise InvalidKeySetUrl from None
                 except ValueError:
+                    # sockaddr[0] is always a valid IP string returned by
+                    # getaddrinfo, so ValueError should never occur here.
+                    # Skip any unexpected entry and let the network layer
+                    # handle it (the outer try/except will surface errors).
                     pass
 
         try:

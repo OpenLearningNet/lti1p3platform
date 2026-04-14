@@ -61,10 +61,17 @@ def authenticate(
                         f"Method {service.request.method} not allowed", 405
                     )
 
-            if not service.platform_config.validate_token(
-                auth[1], service.allowed_scopes
-            ):
-                raise LtiServiceException("Invalid LTI 1.3 authentication token", 401)
+            try:
+                if not service.platform_config.validate_token(
+                    auth[1], service.allowed_scopes
+                ):
+                    raise LtiServiceException(
+                        "Invalid LTI 1.3 authentication token", 401
+                    )
+            except Exception as error:
+                raise LtiServiceException(
+                    "Error validating LTI 1.3 authentication token", 401
+                ) from error
 
             resp = func(service, *args, **kwargs)
             if accept:
