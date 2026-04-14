@@ -7,6 +7,7 @@ from .exceptions import (
     LtiServiceException,
     LineItemNotFoundException,
     InvalidRequestData,
+    PlatformNotReadyException,
 )
 from .lineitem import TLineItem
 from .score import TScore, UpdateScoreStatus, UPDATE_SCORE_STATUSCODE
@@ -68,6 +69,10 @@ def authenticate(
                     raise LtiServiceException(
                         "Invalid LTI 1.3 authentication token", 401
                     )
+            except PlatformNotReadyException:
+                # Platform misconfiguration — let this propagate so callers
+                # receive an appropriate 5xx rather than a misleading 401.
+                raise
             except Exception as error:
                 raise LtiServiceException(
                     "Error validating LTI 1.3 authentication token", 401

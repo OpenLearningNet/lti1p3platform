@@ -30,7 +30,7 @@ from lti1p3platform.service_connector import (
     BasicService,
     NamesRoleProvisioningService,
 )
-
+from lti1p3platform.exceptions import PlatformNotReadyException
 from .platform_config import PLATFORM_CONFIG, RSA_PRIVATE_KEY_PEM, PlatformConf
 
 # ---------------------------------------------------------------------------
@@ -386,8 +386,23 @@ def test_invalid_token_rejected(platform: PlatformConf) -> None:
     req = make_request(method="GET", headers={"Authorization": "Bearer not.a.jwt"})
     ags = _AGSImpl(req, platform)
     resp = ags.handle_resp(ags.handle_get_lineitems)
-    # Invalid JWT — expect auth failure (401) or server error (500)
-    assert resp.code in (401, 500)
+    # Invalid JWT — token validation error maps to 401
+    assert resp.code == 401
+
+
+def test_platform_not_ready_surfaces_as_500(platform: PlatformConf) -> None:
+    """PlatformNotReadyException in validate_token must not be swallowed as 401."""
+
+    req = make_request(method="GET", headers={"Authorization": "Bearer sometoken"})
+    ags = _AGSImpl(req, platform)
+    with patch.object(
+        platform,
+        "validate_token",
+        side_effect=PlatformNotReadyException("Platform key not configured"),
+    ):
+        resp = ags.handle_resp(ags.handle_get_lineitems)
+    # Config error — must surface as 5xx, not a misleading 401
+    assert resp.code == 500
 
 
 def test_token_wrong_scope_rejected(platform: PlatformConf) -> None:
