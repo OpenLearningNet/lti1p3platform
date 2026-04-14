@@ -5,6 +5,7 @@ import typing as t
 import base64
 import json
 import ipaddress
+import socket
 from urllib.parse import urlparse
 from typing_extensions import TypedDict
 import requests
@@ -270,8 +271,26 @@ class LTI1P3PlatformConfAbstract(ABC):
             ):
                 raise InvalidKeySetUrl
         except ValueError:
-            # Hostname is not an IP literal. Continue.
-            pass
+            # Hostname is not an IP literal — resolve it and check all
+            # returned addresses to guard against DNS rebinding / SSRF.
+            try:
+                resolved = socket.getaddrinfo(hostname, None)
+            except socket.gaierror as exc:
+                raise InvalidKeySetUrl from exc
+
+            for _, _, _, _, sockaddr in resolved:
+                try:
+                    addr = ipaddress.ip_address(sockaddr[0])
+                    if (
+                        addr.is_private
+                        or addr.is_loopback
+                        or addr.is_link_local
+                        or addr.is_reserved
+                        or addr.is_multicast
+                    ):
+                        raise InvalidKeySetUrl
+                except ValueError:
+                    pass
 
         try:
             resp = requests.get(key_set_url, timeout=5, allow_redirects=False)

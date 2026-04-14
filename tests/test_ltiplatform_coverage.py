@@ -17,6 +17,7 @@ Covers:
 import time
 import typing as t
 import uuid
+import socket
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -211,19 +212,24 @@ def test_fetch_public_key_valid_url_returns_jwks():
     platform = PlatformConf()
     mock_response = MagicMock()
     mock_response.json.return_value = TOOL_KEY_SET
-    with patch("lti1p3platform.ltiplatform.requests.get", return_value=mock_response):
-        result = platform.fetch_public_key("https://example.com/jwks")
+    # 93.184.216.34 is the real example.com IP (public, non-private)
+    _good_addr = [(socket.AF_INET, socket.SOCK_STREAM, 0, "", ("93.184.216.34", None))]
+    with patch("lti1p3platform.ltiplatform.socket.getaddrinfo", return_value=_good_addr):
+        with patch("lti1p3platform.ltiplatform.requests.get", return_value=mock_response):
+            result = platform.fetch_public_key("https://example.com/jwks")
     assert result == TOOL_KEY_SET
 
 
 def test_fetch_public_key_request_error_raises():
     platform = PlatformConf()
-    with patch(
-        "lti1p3platform.ltiplatform.requests.get",
-        side_effect=requests.exceptions.ConnectionError("network failure"),
-    ):
-        with pytest.raises(LtiException):
-            platform.fetch_public_key("https://example.com/jwks")
+    _good_addr = [(socket.AF_INET, socket.SOCK_STREAM, 0, "", ("93.184.216.34", None))]
+    with patch("lti1p3platform.ltiplatform.socket.getaddrinfo", return_value=_good_addr):
+        with patch(
+            "lti1p3platform.ltiplatform.requests.get",
+            side_effect=requests.exceptions.ConnectionError("network failure"),
+        ):
+            with pytest.raises(LtiException):
+                platform.fetch_public_key("https://example.com/jwks")
 
 
 def test_fetch_public_key_invalid_json_raises():
@@ -231,9 +237,42 @@ def test_fetch_public_key_invalid_json_raises():
     mock_response = MagicMock()
     mock_response.json.side_effect = ValueError("not json")
     mock_response.text = "not json"
-    with patch("lti1p3platform.ltiplatform.requests.get", return_value=mock_response):
-        with pytest.raises(LtiException):
-            platform.fetch_public_key("https://example.com/jwks")
+    _good_addr = [(socket.AF_INET, socket.SOCK_STREAM, 0, "", ("93.184.216.34", None))]
+    with patch("lti1p3platform.ltiplatform.socket.getaddrinfo", return_value=_good_addr):
+        with patch(
+            "lti1p3platform.ltiplatform.requests.get", return_value=mock_response
+        ):
+            with pytest.raises(LtiException):
+                platform.fetch_public_key("https://example.com/jwks")
+
+
+def test_fetch_public_key_hostname_resolves_to_private_ip_raises():
+    """Hostname that resolves to a private IP must be rejected (DNS rebinding)."""
+    platform = PlatformConf()
+    _private_addr = [(socket.AF_INET, socket.SOCK_STREAM, 0, "", ("192.168.1.1", None))]
+    with patch("lti1p3platform.ltiplatform.socket.getaddrinfo", return_value=_private_addr):
+        with pytest.raises(InvalidKeySetUrl):
+            platform.fetch_public_key("https://evil.example.com/jwks")
+
+
+def test_fetch_public_key_hostname_resolves_to_loopback_raises():
+    """Hostname that resolves to 127.0.0.1 must be rejected."""
+    platform = PlatformConf()
+    _loopback_addr = [(socket.AF_INET, socket.SOCK_STREAM, 0, "", ("127.0.0.1", None))]
+    with patch("lti1p3platform.ltiplatform.socket.getaddrinfo", return_value=_loopback_addr):
+        with pytest.raises(InvalidKeySetUrl):
+            platform.fetch_public_key("https://rebind.example.com/jwks")
+
+
+def test_fetch_public_key_dns_resolution_failure_raises():
+    """DNS resolution failure must be treated as an invalid key-set URL."""
+    platform = PlatformConf()
+    with patch(
+        "lti1p3platform.ltiplatform.socket.getaddrinfo",
+        side_effect=socket.gaierror("Name or service not known"),
+    ):
+        with pytest.raises(InvalidKeySetUrl):
+            platform.fetch_public_key("https://nonexistent.invalid/jwks")
 
 
 # ---------------------------------------------------------------------------
@@ -256,8 +295,12 @@ def test_get_tool_key_set_https_url_returns_and_caches():
     platform._registration.set_tool_key_set_url("https://example.com/jwks")
     mock_response = MagicMock()
     mock_response.json.return_value = TOOL_KEY_SET
-    with patch("lti1p3platform.ltiplatform.requests.get", return_value=mock_response):
-        result = platform.get_tool_key_set()
+    _good_addr = [(socket.AF_INET, socket.SOCK_STREAM, 0, "", ("93.184.216.34", None))]
+    with patch("lti1p3platform.ltiplatform.socket.getaddrinfo", return_value=_good_addr):
+        with patch(
+            "lti1p3platform.ltiplatform.requests.get", return_value=mock_response
+        ):
+            result = platform.get_tool_key_set()
     assert result == TOOL_KEY_SET
     # Subsequent call uses cache (no extra HTTP calls)
     result2 = platform.get_tool_key_set()
