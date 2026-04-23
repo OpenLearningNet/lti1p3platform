@@ -25,7 +25,7 @@ import requests
 
 from lti1p3platform.jwt_helper import jwt_encode
 from lti1p3platform.ltiplatform import LTI1P3PlatformConfAbstract
-from lti1p3platform.registration import Registration as _Registration
+from lti1p3platform.registration import Registration as _Registration, RegistrationError
 from lti1p3platform.exceptions import (
     InvalidClientAssertion,
     InvalidJwtToken,
@@ -296,9 +296,8 @@ def test_get_tool_key_set_non_https_url_raises():
     platform = PlatformConf()
     # Replace key set with None, set an HTTP URL
     platform._registration.set_tool_key_set(None)
-    platform._registration.set_tool_key_set_url("http://example.com/jwks")
-    with pytest.raises(InvalidKeySetUrl):
-        platform.get_tool_key_set()
+    with pytest.raises(RegistrationError, match="tool_key_set_url must use HTTPS"):
+        platform._registration.set_tool_key_set_url("http://example.com/jwks")
 
 
 def test_get_tool_key_set_https_url_returns_and_caches():

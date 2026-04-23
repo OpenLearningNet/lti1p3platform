@@ -3,6 +3,7 @@ from __future__ import annotations
 import typing as t
 import time
 import json
+from urllib.parse import urlparse
 from jwcrypto.jwk import JWK  # type: ignore
 
 import jwt
@@ -13,6 +14,10 @@ from .jwt_helper import jwt_encode
 
 if t.TYPE_CHECKING:
     from .ltiplatform import JWKS
+
+
+class RegistrationError(Exception):
+    pass
 
 
 # pylint: disable=too-many-instance-attributes, too-many-public-methods
@@ -61,6 +66,43 @@ class Registration:
     _platform_public_key = None
     _platform_private_key = None
     _deeplink_launch_url = None
+    allow_loopback_http = False
+
+    def _validate_secure_url(
+        self,
+        url: t.Optional[str],
+        field_name: str,
+        allow_none: bool = False,
+        allow_loopback_http: t.Optional[bool] = None,
+    ) -> None:
+        if url is None or url.strip() == "":
+            if allow_none:
+                return
+            raise RegistrationError(f"{field_name} is required")
+
+        allow_loopback_http = (
+            self.allow_loopback_http
+            if allow_loopback_http is None
+            else allow_loopback_http
+        )
+
+        parsed_url = urlparse(url)
+        hostname = parsed_url.hostname
+
+        if not parsed_url.scheme or not parsed_url.netloc:
+            raise RegistrationError(f"{field_name} must be an absolute URL")
+
+        if parsed_url.scheme == "https":
+            return
+
+        if allow_loopback_http and parsed_url.scheme == "http":
+            if hostname in {"localhost", "127.0.0.1", "::1"}:
+                return
+
+        raise RegistrationError(
+            f"{field_name} must use HTTPS"
+            " (except localhost/127.0.0.1/::1 over HTTP for development)"
+        )
 
     def get_iss(self) -> t.Optional[str]:
         """
@@ -245,6 +287,7 @@ class Registration:
         """
         Set tool provider launch url
         """
+        self._validate_secure_url(launch_url, "launch_url")
         self._launch_url = launch_url
 
         return self
@@ -269,14 +312,20 @@ class Registration:
         """
         Set OIDC login url
         """
+        self._validate_secure_url(oidc_login_url, "oidc_login_url")
         self._oidc_login_url = oidc_login_url
 
         return self
 
-    def set_access_token_url(self, access_token_url: str) -> Registration:
+    def set_access_token_url(self, access_token_url: t.Optional[str]) -> Registration:
         """
         Set OAuth 2 access token URL (authorization server audience)
         """
+        self._validate_secure_url(
+            access_token_url,
+            "access_token_url",
+            allow_none=True,
+        )
         self._access_token_url = access_token_url
 
         return self
@@ -297,10 +346,15 @@ class Registration:
 
         return self
 
-    def set_deeplink_launch_url(self, deeplink_launch_url: str) -> Registration:
+    def set_deeplink_launch_url(
+        self, deeplink_launch_url: t.Optional[str]
+    ) -> Registration:
         """
         Set deep linking launch url
         """
+        self._validate_secure_url(
+            deeplink_launch_url, "deeplink_launch_url", allow_none=True
+        )
         self._deeplink_launch_url = deeplink_launch_url
 
         return self
@@ -338,7 +392,13 @@ class Registration:
     def get_tool_key_set_url(self) -> t.Optional[str]:
         return self._tool_keyset_url
 
-    def set_tool_key_set_url(self, key_set_url: str) -> Registration:
+    def set_tool_key_set_url(self, key_set_url: t.Optional[str]) -> Registration:
+        self._validate_secure_url(
+            key_set_url,
+            "tool_key_set_url",
+            allow_loopback_http=False,
+            allow_none=True,
+        )
         self._tool_keyset_url = key_set_url
         return self
 
@@ -353,6 +413,8 @@ class Registration:
         return self._tool_redirect_uris
 
     def set_tool_redirect_uris(self, redirect_uris: t.List[str]) -> Registration:
+        for redirect_uri in redirect_uris:
+            self._validate_secure_url(redirect_uri, "tool_redirect_uri")
         self._tool_redirect_uris = redirect_uris
         return self
 

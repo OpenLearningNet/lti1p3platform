@@ -10,7 +10,7 @@ from unittest.mock import patch
 import pytest
 
 from lti1p3platform.exceptions import InternalSigningError, PlatformNotReadyException
-from lti1p3platform.registration import Registration
+from lti1p3platform.registration import Registration, RegistrationError
 
 from .platform_config import (
     RSA_PUBLIC_KEY_PEM,
@@ -126,6 +126,51 @@ def test_set_and_get_tool_redirect_uris():
 def test_get_tool_redirect_uris_default_none():
     reg = Registration()
     assert reg.get_tool_redirect_uris() is None
+
+
+def test_set_launch_url_non_https_non_loopback_raises():
+    reg = Registration()
+    with pytest.raises(RegistrationError, match="launch_url must use HTTPS"):
+        reg.set_launch_url("http://tool.example.com/launch")
+
+
+def test_set_launch_url_loopback_http_denied_by_default():
+    reg = Registration()
+    with pytest.raises(RegistrationError, match="launch_url must use HTTPS"):
+        reg.set_launch_url("http://localhost:8000/launch")
+
+
+def test_set_launch_url_loopback_http_allowed_for_development():
+    reg = Registration()
+    reg.allow_loopback_http = True
+    reg.set_launch_url("http://localhost:8000/launch")
+    assert reg.get_launch_url() == "http://localhost:8000/launch"
+
+
+def test_set_access_token_url_non_https_non_loopback_raises():
+    reg = Registration()
+    with pytest.raises(RegistrationError, match="access_token_url must use HTTPS"):
+        reg.set_access_token_url("http://platform.example.com/token")
+
+
+def test_set_tool_key_set_url_non_https_raises():
+    reg = Registration()
+    with pytest.raises(RegistrationError, match="tool_key_set_url must use HTTPS"):
+        reg.set_tool_key_set_url("http://tool.example.com/jwks")
+
+
+def test_set_tool_redirect_uris_non_https_non_loopback_raises():
+    reg = Registration()
+    with pytest.raises(RegistrationError, match="tool_redirect_uri must use HTTPS"):
+        reg.set_tool_redirect_uris(["http://tool.example.com/launch"])
+
+
+def test_set_tool_redirect_uris_loopback_http_allowed_for_development():
+    reg = Registration()
+    reg.allow_loopback_http = True
+    uris = ["http://127.0.0.1:8080/launch", "https://tool.example.com/deeplink"]
+    reg.set_tool_redirect_uris(uris)
+    assert reg.get_tool_redirect_uris() == uris
 
 
 def test_encode_and_sign_without_expiration():

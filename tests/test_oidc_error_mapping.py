@@ -16,7 +16,7 @@ from lti1p3platform.exceptions import (
 from lti1p3platform.message_launch import MessageLaunchAbstract
 from lti1p3platform.oidc_login import OIDCLoginAbstract
 from lti1p3platform.request import Request
-
+from lti1p3platform.registration import Registration
 from .platform_config import PLATFORM_CONFIG, PlatformConf
 
 
@@ -180,8 +180,29 @@ def test_prepare_preflight_url_missing_message_hint_raises_platform_not_ready():
 
 
 def test_prepare_preflight_url_missing_oidc_login_url_raises_platform_not_ready():
-    login = _make_oidc_login()
-    login._registration.set_oidc_login_url(None)
+    request = _DummyRequest(
+        {
+            "method": "GET",
+            "form_data": {},
+            "get_data": {},
+            "headers": {},
+            "content_type": None,
+            "path": "/oidc",
+            "json": None,
+        }
+    )
+    # Create a registration without setting oidc_login_url
+    minimal_reg = Registration()
+    minimal_reg.set_iss(PLATFORM_CONFIG["iss"])
+    minimal_reg.set_client_id(PLATFORM_CONFIG["client_id"])
+    minimal_reg.set_deployment_id(PLATFORM_CONFIG["deployment_id"])
+    minimal_reg.set_launch_url(PLATFORM_CONFIG["launch_url"])
+
+    # Note: NOT setting oidc_login_url
+    platform = PlatformConf()
+    login = _DummyOIDCLogin(request, platform)
+    login._registration = minimal_reg
+    login.set_lti_message_hint(message_hint="resource-link-123")
 
     with pytest.raises(PlatformNotReadyException, match="OIDC login URL"):
         login.prepare_preflight_url("user-123")
