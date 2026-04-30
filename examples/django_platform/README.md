@@ -20,16 +20,22 @@ You also need to add platform config to the tool config file [game.json](https:/
         "https://example.com": [{
             "default": true,
             "client_id": "12345",
-            "auth_login_url": "http://127.0.0.1:9002/authorization",
-            "auth_token_url": "http://127.0.0.1:9002/access_token",
-            "auth_audience": null,
-            "key_set_url": "http://127.0.0.1:9002/jwks",
+            "auth_login_url": "https://127.0.0.1:9002/authorization",
+            "auth_token_url": "https://127.0.0.1:9002/access_token",
+            "auth_audience": "https://127.0.0.1:9002/access_token",
+            "key_set_url": "https://127.0.0.1:9002/jwks",
             "key_set": null,
             "private_key_file": "private.key",
             "public_key_file": "public.key",
             "deployment_ids": ["1"]
         }]
     }
+
+Security note for recent validation updates:
+
+- `auth_audience` must match the platform access token endpoint.
+- Tool key set URLs must be HTTPS (`https://`) to pass JWKS URL validation.
+- If you run locally without TLS, use a local HTTPS proxy/tunnel for the JWKS endpoint.
 
 Now there is game example tool you can launch into on the port 9001 which is already set up in `platform.json`:
 

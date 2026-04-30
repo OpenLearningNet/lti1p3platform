@@ -1,3 +1,6 @@
+import time
+import typing as t
+
 from lti1p3platform.ltiplatform import LTI1P3PlatformConfAbstract
 from lti1p3platform.registration import Registration
 
@@ -86,6 +89,7 @@ PLATFORM_CONFIG = {
     "iss": "http://test-platform.example/",
     "client_id": "test-platform",
     "deployment_id": 1,
+    "access_token_url": "https://test-platform.example/token",
     "launch_url": "https://lti-ri.imsglobal.org/lti/tools/3674/launches",
     "oidc_login_url": "https://lti-ri.imsglobal.org/lti/tools/3674/login_initiations",
     "key_set_url": "https://lti-ri.imsglobal.org/lti/tools/3674/.well-known/jwks.json",
@@ -93,10 +97,30 @@ PLATFORM_CONFIG = {
 }
 
 
-class TestPlatform(LTI1P3PlatformConfAbstract):
+class PlatformConf(LTI1P3PlatformConfAbstract):
     """
-    Test platform configuration
+    Test platform configuration.
+
+    Cache backend: simple in-memory dict for unit test use only.
+    Not suitable for production (not shared across processes).
     """
+
+    def __init__(self, **kwargs: t.Any) -> None:
+        # In-memory cache: key -> expiration timestamp
+        self._cache: t.Dict[str, int] = {}
+        super().__init__(**kwargs)
+
+    def cache_get(self, key: str) -> t.Optional[int]:
+        """Return stored expiry, or None if absent/expired."""
+        exp = self._cache.get(key)
+        if exp is None or exp < int(time.time()):
+            self._cache.pop(key, None)
+            return None
+        return exp
+
+    def cache_set(self, key: str, exp: int) -> None:
+        """Store entry; will be evicted lazily on next cache_get."""
+        self._cache[key] = exp
 
     def init_platform_config(self, **kwargs) -> None:
         self._registration = (
@@ -104,6 +128,7 @@ class TestPlatform(LTI1P3PlatformConfAbstract):
             .set_iss(PLATFORM_CONFIG["iss"])
             .set_client_id(PLATFORM_CONFIG["client_id"])
             .set_deployment_id(PLATFORM_CONFIG["deployment_id"])
+            .set_access_token_url(PLATFORM_CONFIG["access_token_url"])
             .set_oidc_login_url(PLATFORM_CONFIG["oidc_login_url"])
             .set_launch_url(PLATFORM_CONFIG["launch_url"])
             .set_platform_public_key(RSA_PUBLIC_KEY_PEM)

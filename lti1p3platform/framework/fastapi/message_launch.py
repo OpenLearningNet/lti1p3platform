@@ -1,7 +1,7 @@
 import typing as t
 
 from fastapi.requests import Request
-from fastapi.responses import Response
+from fastapi.responses import PlainTextResponse, RedirectResponse, Response
 
 from lti1p3platform.message_launch import MessageLaunchAbstract
 
@@ -19,3 +19,9 @@ class FastapiMessageLaunch(MessageLaunchAbstract):
         self, launch_data: t.Dict[str, t.Any], **kwargs: t.Any
     ) -> Response:
         return Response(template.render(launch_data))
+
+    def get_redirect(self, url: str) -> RedirectResponse:
+        return RedirectResponse(url)
+
+    def render_error_page(self, message: str, status_code: int) -> PlainTextResponse:
+        return PlainTextResponse(message, status_code=status_code)

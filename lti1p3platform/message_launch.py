@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import typing as t
+from urllib.parse import urlencode, urlparse
 
 from abc import ABC, abstractmethod
 from typing_extensions import TypedDict
@@ -22,8 +23,49 @@ class LaunchData(TypedDict):
     state: str
 
 
-# pylint: disable=too-many-instance-attributes
+# pylint: disable=too-many-instance-attributes,too-many-public-methods
 class MessageLaunchAbstract(ABC):
+    """
+    Abstract base class for LTI 1.3 Message Launch handling
+
+    LTI 1.3 Launch Process (end-to-end):
+    1. User clicks "launch tool" in platform
+    2. Platform redirects browser to tool's OIDC login endpoint
+    3. Tool validates login initiation request and redirects to platform auth endpoint
+    4. Platform validates authorization request and prepares OIDC response
+    5. Platform authenticates user if needed
+    6. Platform sends POST with id_token + state to tool's launch_url
+    7. Tool validates JWT signature and claims
+    8. Tool displays interface with user's context
+
+    This class handles:
+    - Step 5 via an authentication hook implemented by the platform layer
+    - Step 6 on the platform side (build and POST id_token + state)
+    - Receiving and parsing launch requests
+    - Validating JWT signatures and claims
+    - Extracting LTI claims (user roles, resource context, etc.)
+    - Building response data
+    - Interfacing with LTI Advantage services (AGS, NRPS)
+
+    Message Contents:
+    The id_token JWT contains many claims about the launch context:
+    - User identity: sub (subject/user ID), email, name, roles
+    - Resource: resource_link (content being launched)
+    - Context: context (course/organization info)
+    - Custom parameters: Custom data platform passes to tool
+        - Roles: User roles (e.g.,
+            'http://purl.imsglobal.org/vocab/lis/v2/institution/person#Instructor')
+
+    HTTPS Requirement:
+    - All Platform/Tool URLs must use HTTPS for production
+    - Except localhost (127.0.0.1, ::1) allowed for development
+    - Prevents man-in-the-middle attacks on tokens
+
+    Reference:
+    - LTI 1.3 Resource Link Request: https://www.imsglobal.org/spec/lti/v1p3/#resource-link-request
+    - LTI Deep Link Launch: https://www.imsglobal.org/spec/lti-dl/v2p0/#lifecycle
+    """
+
     _request = None
     _registration: t.Optional[Registration] = None
 
@@ -48,7 +90,8 @@ class MessageLaunchAbstract(ABC):
         self.id_token_expiration = 5 * 60
 
     def get_preflight_response(self) -> t.Dict[str, t.Any]:
-        assert self._request is not None
+        if self._request is None:
+            raise exceptions.PlatformNotReadyException("Request context not available")
         # pylint: disable=protected-access
         return self._request.get_data or self._request.form_data
 
@@ -65,10 +108,58 @@ class MessageLaunchAbstract(ABC):
         preferred_username: t.Optional[str] = None,
     ) -> None:
         """
-        Set user data/roles and convert to IMS Specification
+        Set user data/roles and convert to IMS LTI 1.3 Standard Claims
 
-        User Claim doc: http://www.imsglobal.org/spec/lti/v1p3/#user-identity-claims
-        Roles Claim doc: http://www.imsglobal.org/spec/lti/v1p3/#roles-claim
+        LTI 1.3 User Claims:
+        The platform includes these claims in the LTI launch JWT to tell the tool
+        about the user launching the tool.
+
+        User Identity Claims:
+        - sub: Locally stable opaque user identifier
+          * Does NOT need to be user's actual username
+          * Must be stable (same user always gets same sub value)
+          * Example: "user-123" (platform-specific ID)
+          * Tool uses this to correlate requests from same user
+
+        Roles Claim:
+        - https://purl.imsglobal.org/spec/lti/claim/roles
+        - Array of URIs representing user's roles in the context
+        - Role examples:
+          * http://purl.imsglobal.org/vocab/lis/v2/institution/person#Instructor
+          * http://purl.imsglobal.org/vocab/lis/v2/institution/person#Student
+          * http://purl.imsglobal.org/vocab/lis/v2/institution/person#Administrator
+        - Tool uses roles to determine what user can do (e.g., grading UI for instructors only)
+
+        Optional Identity Claims:
+        - name: Full name of the user
+        - email: Email address (if available and privacy rules allow)
+        - preferred_username: Username if appropriate
+
+        Privacy Considerations:
+        - Platform should only include claims that:
+          1. User has agreed to share
+          2. Tool legitimately needs to function
+          3. Comply with institutional privacy policies
+        - PII (Personally Identifiable Information) should be minimal and necessary
+
+        Usage by Tool:
+        1. Tool receives JWT with these claims
+        2. Tool validates JWT signature (verify platform signed it)
+        3. Tool extracts user claims to identify user
+        4. Tool can check roles to enable/disable features
+        5. Tool registers/creates user account if first time
+
+        Reference (User Identity Claims):
+        - https://www.imsglobal.org/spec/lti/v1p3/#user-identity-claims
+        - https://www.imsglobal.org/spec/lti/v1p3/#roles-claim
+        - https://www.imsglobal.org/spec/lti/v1p3/#core-recommended-claims
+
+        Parameters:
+            user_id: Unique, stable user identifier (sub claim)
+            lis_roles: List of role URIs from IMS LIS vocabulary
+            full_name: User's full name (optional)
+            email_address: User's email address (optional, privacy-sensitive)
+            preferred_username: User's preferred username (optional)
         """
         self.lti_claim_user_data = {
             # User identity claims
@@ -234,7 +325,8 @@ class MessageLaunchAbstract(ABC):
         return self
 
     def get_launch_url(self) -> t.Optional[str]:
-        assert self._registration
+        if self._registration is None:
+            raise exceptions.PlatformNotReadyException("Registration not yet set")
 
         if not self._launch_url:
             self._launch_url = self._registration.get_launch_url()
@@ -244,7 +336,8 @@ class MessageLaunchAbstract(ABC):
     def get_launch_message(
         self, include_extra_claims: bool = True
     ) -> t.Dict[str, t.Any]:
-        assert self._registration
+        if self._registration is None:
+            raise exceptions.PlatformNotReadyException("Registration not yet set")
 
         launch_message: t.Dict[str, t.Any] = LTI_BASE_MESSAGE.copy()
 
@@ -295,26 +388,143 @@ class MessageLaunchAbstract(ABC):
         self, preflight_response: t.Dict[str, t.Any]
     ) -> None:
         """
-        Validates a preflight response to be used in a launch request
+        Validate LTI launch preflight response from platform's authorization endpoint
 
-        Raises ValueError in case of validation failure
+        OpenID Connect Authorization Endpoint Response:
+        When the platform's OIDC authorization endpoint processes the login request,
+        it returns parameters that the tool must validate before granting access.
 
-        :param response: the preflight response to be validated
+        Validation Checks:
+        ==================
+
+        1. response_type = "id_token"
+           - OIDC Implicit Flow: Request JWT token directly, no authorization code exchange
+           - Alternative flows use "code" (Authorization Code Flow)
+           - LTI 1.3 uses "id_token" response type
+
+        2. scope = "openid"
+           - OIDC scope indicating OpenID Connect authentication
+           - (Not the same as OAuth 2.0 scope for API permissions)
+           - Tell authorization server we want OIDC identity token
+
+        3. nonce present and valid
+           - Random value generated by tool before redirect to platform
+           - Platform must include exact same nonce in response
+           - Prevents authorization code/token interception attacks
+           - Replay attack protection (See OIDC spec)
+           - Example: Tool generates nonce='abc123', validates response has nonce='abc123'
+
+        4. state present and valid
+           - Random value generated by tool before redirect to platform
+           - Platform must include exact same state in response
+           - Prevents Cross-Site Request Forgery (CSRF) attacks
+           - Example attack prevented: Attacker tricks user into visiting evil.com which
+             sends them to wrong authorization endpoint, tries to get them logged in there
+
+        5. redirect_uri validation
+           - Must match one of tool's pre-registered redirect URIs
+           - HTTPS REQUIRED in production
+           - Prevents open redirect attacks
+           - Ensures response goes only to legitimate tool endpoint
+           - Allows http://localhost for local development
+           - Allows http://127.0.0.1 for local development
+           - Allows http://::1 for local IPv6 localhost development
+
+        6. client_id validation
+           - Must match tool's registered client_id at platform
+           - Ensures response is for correct tool instance
+
+        HTTPS Requirement (Production Security):
+        =========================================
+        - All redirect_uri values must use HTTPS
+        - Prevents man-in-the-middle attacks
+        - Attackers cannot intercept tokens in transit
+        - Exceptions: localhost addresses for development/testing
+
+        Token Flow After Validation:
+        =============================
+        After these validations pass, the tool will:
+        1. Extract id_token from response parameters
+        2. Validate JWT signature (verify platform signed it)
+        3. Verify all claims in id_token
+        4. Extract user/context information from claims
+        5. Grant access to user
+
+        Security Considerations:
+        ========================
+        - Validate AGAINST a whitelist of known-good values
+        - Never trust input parameters directly
+        - HTTPS encryption prevents token interception
+        - JWT signature proves platform created this response
+
+        Reference:
+        - OIDC Implicit Flow: https://openid.net/specs/openid-connect-core-1_0.html#ImplicitFlow
+        - OIDC Nonce: https://openid.net/specs/openid-connect-core-1_0.html#NonceNotes
+        - OAuth 2.0 CSRF: https://tools.ietf.org/html/rfc6749#section-10.12
+                - LTI 1.3 Preflight Response Validation:  # pylint: disable=line-too-long
+                    https://www.imsglobal.org/spec/lti/v1p3/#authorization
+
+        Parameters:
+            preflight_response: Dict with response parameters from authorization endpoint
+
+        Raises:
+            InvalidRequestData: If required parameters are missing
+            UnauthorizedClient: If client_id is unknown
+            UnsupportedResponseType: If response_type is invalid
+            InvalidScopeException: If scope is invalid
+            InvalidRequestUri: If redirect_uri is invalid
         """
-        assert self._registration
+        if self._registration is None:
+            raise exceptions.PlatformNotReadyException("Registration not yet set")
 
-        try:
-            assert preflight_response.get("nonce")
-            assert preflight_response.get("state")
-            assert preflight_response.get("redirect_uri")
-            assert (
-                preflight_response.get("client_id")
-                == self._registration.get_client_id()
+        required_params = [
+            "client_id",
+            "response_type",
+            "scope",
+            "nonce",
+            "state",
+            "redirect_uri",
+        ]
+        missing_params = [
+            param for param in required_params if not preflight_response.get(param)
+        ]
+        if missing_params:
+            raise exceptions.InvalidRequestData(
+                f"Missing required parameters: {', '.join(missing_params)}"
             )
 
-            self._redirect_url = preflight_response.get("redirect_uri")
-        except AssertionError as err:
-            raise exceptions.PreflightRequestValidationException from err
+        if preflight_response.get("client_id") != self._registration.get_client_id():
+            raise exceptions.UnauthorizedClient(
+                "Invalid client_id in preflight response"
+            )
+
+        if preflight_response.get("response_type") != "id_token":
+            raise exceptions.UnsupportedResponseType(
+                "Invalid response_type: expected 'id_token'"
+            )
+
+        if preflight_response.get("scope") != "openid":
+            raise exceptions.InvalidScopeException("Invalid scope: expected 'openid'")
+
+        redirect_uri = preflight_response.get("redirect_uri")
+        registered_redirect_uris = self._registration.get_tool_redirect_uris()
+        if not registered_redirect_uris or redirect_uri not in registered_redirect_uris:
+            raise exceptions.InvalidRequestUri(
+                f"redirect_uri '{redirect_uri}' not registered for this tool"
+            )
+
+        parsed_redirect_uri = urlparse(redirect_uri)
+        if parsed_redirect_uri.scheme != "https":
+            is_allowed_loopback = (
+                parsed_redirect_uri.scheme == "http"
+                and parsed_redirect_uri.hostname in {"localhost", "127.0.0.1", "::1"}
+            )
+            if not is_allowed_loopback:
+                raise exceptions.InvalidRequestUri(
+                    "redirect_uri must use HTTPS (except localhost for development)"
+                )
+
+        self._redirect_url = redirect_uri
 
     def get_launch_data(self) -> t.Tuple[t.Dict[str, t.Any], str]:
         preflight_response = self.get_preflight_response()
@@ -335,7 +545,8 @@ class MessageLaunchAbstract(ABC):
         """
         launch_message, state = self.get_launch_data()
 
-        assert self._registration
+        if self._registration is None:
+            raise exceptions.PlatformNotReadyException("Registration not yet set")
 
         # sign launch message with private key
         id_token = self._registration.platform_encode_and_sign(
@@ -350,25 +561,71 @@ class MessageLaunchAbstract(ABC):
     ) -> t.Any:
         raise NotImplementedError
 
+    @abstractmethod
+    def get_redirect(self, url: str) -> t.Any:
+        raise NotImplementedError
+
+    @abstractmethod
+    def render_error_page(self, message: str, status_code: int) -> t.Any:
+        raise NotImplementedError
+
+    def build_error_redirect_url(
+        self,
+        redirect_uri: str,
+        error: Exception,
+        state: t.Optional[str] = None,
+    ) -> str:
+        params = {
+            "error": exceptions.get_error_code(error),
+            "error_description": str(error),
+        }
+        if state:
+            params["state"] = state
+
+        separator = "&" if urlparse(redirect_uri).query else "?"
+        return f"{redirect_uri}{separator}{urlencode(params)}"
+
+    def get_error_response(
+        self,
+        error: Exception,
+        redirect_uri: t.Optional[str] = None,
+        state: t.Optional[str] = None,
+    ) -> t.Any:
+        if redirect_uri and exceptions.get_error_response_behavior(error) == "redirect":
+            return self.get_redirect(
+                self.build_error_redirect_url(redirect_uri, error, state)
+            )
+
+        return self.render_error_page(
+            str(error),
+            exceptions.get_error_page_status_code(error),
+        )
+
     def lti_launch(self, **kwargs: t.Any) -> t.Any:
         # This should render a form, and then submit it to the tool's launch URL, as
         # described in http://www.imsglobal.org/spec/lti/v1p3/#lti-message-general-details
 
         self._registration = self._platform_config.get_registration()
+        preflight_response: t.Dict[str, t.Any] = {}
 
-        preflight_response = self.get_preflight_response()
+        try:
+            preflight_response = self.get_preflight_response()
 
-        # validate preflight request response from tool
-        self.validate_preflight_response(preflight_response)
+            # validate preflight request response from tool
+            self.validate_preflight_response(preflight_response)
 
-        self.prepare_launch(preflight_response)
+            self.prepare_launch(preflight_response)
 
-        launch_data = self.generate_launch_request()
+            launch_data = self.generate_launch_request()
 
-        launch_data_copy = dict(launch_data)
-        launch_data_copy.update({"launch_url": self._redirect_url})
+            launch_data_copy = dict(launch_data)
+            launch_data_copy.update({"launch_url": self._redirect_url})
 
-        return self.render_launch_form(launch_data_copy, **kwargs)
+            return self.render_launch_form(launch_data_copy, **kwargs)
+        except Exception as err:  # pylint: disable=broad-exception-caught
+            redirect_uri = preflight_response.get("redirect_uri")
+            state = preflight_response.get("state")
+            return self.get_error_response(err, redirect_uri=redirect_uri, state=state)
 
 
 class LTIAdvantageMessageLaunchAbstract(MessageLaunchAbstract):
@@ -426,7 +683,8 @@ class LTIAdvantageMessageLaunchAbstract(MessageLaunchAbstract):
         return self
 
     def generate_launch_request(self) -> LaunchData:
-        assert self._registration, "Registration is required"
+        if self._registration is None:
+            raise exceptions.PlatformNotReadyException("Registration is required")
 
         deep_linking_launch_url = self._registration.get_deeplink_launch_url()
 

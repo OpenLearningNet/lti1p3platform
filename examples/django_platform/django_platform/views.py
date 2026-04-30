@@ -25,6 +25,51 @@ SCORES_SERVICE_ENABLED = True
 
 
 class LTIPlatformConf(LTI1P3PlatformConfAbstract):
+    """
+    Concrete platform configuration for the example Django app.
+
+    Cache backend
+    -------------
+    Replay-detection (JTI and nonce) is backed by Django's cache framework
+    (``django.core.cache.cache``) so that entries are shared across
+    processes and survive restarts.  Configure the backend in settings.py;
+    the default LocMemCache works for local development.
+
+    For production, point ``CACHES`` at Redis or Memcached::
+
+        CACHES = {
+            "default": {
+                "BACKEND": "django.core.cache.backends.redis.RedisCache",
+                "LOCATION": "redis://127.0.0.1:6379",
+            }
+        }
+    """
+
+    # ------------------------------------------------------------------ #
+    # Replay-detection cache (implements LTI1P3PlatformConfAbstract API)  #
+    # ------------------------------------------------------------------ #
+
+    def cache_get(self, key: str) -> t.Optional[int]:
+        """
+        Look up a replay-detection entry via Django's cache framework.
+        Returns the stored expiration timestamp, or None if absent/expired.
+        """
+        from django.core.cache import cache  # pylint: disable=import-outside-toplevel
+
+        return cache.get(key)  # type: ignore[return-value]
+
+    def cache_set(self, key: str, exp: int) -> None:
+        """
+        Persist a replay-detection entry via Django's cache framework.
+        TTL is derived from the token expiration so entries are evicted
+        automatically when the token would already be invalid.
+        """
+        import time as _time  # pylint: disable=import-outside-toplevel
+        from django.core.cache import cache  # pylint: disable=import-outside-toplevel
+
+        ttl = max(1, exp - int(_time.time()))
+        cache.set(key, exp, timeout=ttl)
+
     def init_platform_config(self, platform_settings: t.Dict[str, t.Any]) -> None:
         """
         register platform configuration
@@ -41,6 +86,11 @@ class LTIPlatformConf(LTI1P3PlatformConfAbstract):
             .set_platform_public_key(platform_settings["public_key"])
             .set_platform_private_key(platform_settings["private_key"])
         )
+
+        access_token_url = platform_settings.get("access_token_url") or get_url(
+            reverse("access-token")
+        )
+        registration.set_access_token_url(access_token_url)
 
         self._registration = registration
 

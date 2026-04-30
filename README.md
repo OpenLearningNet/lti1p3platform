@@ -2,6 +2,26 @@
 
 # LTI 1.3 Platform implementation in Python
 
+# Installation
+
+Install the core library only:
+
+```bash
+pip install lti1p3platform
+```
+
+Install with Django support:
+
+```bash
+pip install lti1p3platform[Django]
+```
+
+Install with FastAPI support:
+
+```bash
+pip install lti1p3platform[fastapi]
+```
+
 # Usage
 
 ## Register your platform
@@ -25,7 +45,11 @@ class LTIPlatformConf(LTI1P3PlatformConfAbstract):
             .set_oidc_login_url(platform_settings.oidc_login_url) \
             .set_tool_key_set_url(platform_settings.key_set_url) \
             .set_platform_public_key(platform_key_set.public_key) \
-            .set_platform_private_key(platform_key_set.private_key)
+            .set_platform_private_key(platform_key_set.private_key) \
+            .set_tool_redirect_uris([
+                "https://tool.example.com/lti/launch",
+                "https://tool.example.com/lti/deeplink",
+            ])
 
         self._registration = registration
 
@@ -40,6 +64,14 @@ def get_jwks(request, *args, **kwargs):
 
     return HttpResponseJSON(platform.get_jwks())
 ```
+
+> **Important – redirect URI allowlist:** `set_tool_redirect_uris()` is required.
+> It defines the allowlist of redirect URIs that the tool is permitted to supply
+> during an OIDC/LTI launch. The `redirect_uri` sent by the tool in the preflight
+> response must exactly match one of the registered values, otherwise the launch
+> will fail with an `invalid_request_uri` error and render a local error page
+> (not a redirect). All URIs must use HTTPS; plain HTTP is only accepted for
+> `localhost` / `127.0.0.1` / `::1` during development.
 
 ## OIDC initiate login
 
@@ -64,15 +96,43 @@ class OIDCLogin(OIDCLoginAbstract):
         """
         return HttpResponseRedirect(url)
 
+    def render_error_page(self, message, status_code):
+        """
+        This will be invoked when the library decides the error must not be
+        returned as an OAuth redirect.
+        """
+        return HttpResponse(message, status=status_code)
+
 # Initiate login endpoint
 def preflight_lti_1p3_launch(request, user_id, *args, **kwargs):
     platform = get_registered_platform(*args, **kwargs)
-    oidc_login = OLOIDCLogin(request, platform)
+    oidc_login = OIDCLogin(request, platform)
 
     # Redirect the current login user to the tool provider,
-    return redirect_url.initiate_login(user_id)
+    return oidc_login.initiate_login(user_id)
 
 ```
+
+### OIDC error response behavior
+
+The library decides whether an OIDC/login error should be returned as a redirect
+to the tool or rendered locally as an error page.
+
+| Scenario | Error code | Behavior |
+|----------|------------|----------|
+| Unknown `client_id` | `unauthorized_client` | Redirect to `redirect_uri` with OAuth error params |
+| Missing required params | `invalid_request` | Redirect to `redirect_uri` with OAuth error params |
+| Wrong `response_type` | `unsupported_response_type` | Redirect to `redirect_uri` with OAuth error params |
+| Missing `openid` scope | `invalid_scope` | Redirect to `redirect_uri` with OAuth error params |
+| Bad `login_hint` | `invalid_request` | Redirect to `redirect_uri` with OAuth error params |
+| Expired `lti_message_hint` | `invalid_request` | Redirect to `redirect_uri` with OAuth error params |
+| User not authorized | `access_denied` | Redirect to `redirect_uri` with OAuth error params |
+| User not logged in | `login_required` | Redirect to `redirect_uri` with OAuth error params |
+| Invalid `redirect_uri` | `invalid_request_uri` | Render local error page |
+| Internal signing/config error | `server_error` or `temporarily_unavailable` | Render local error page |
+
+For redirectable errors, the library appends `error`, `error_description`, and
+`state` when available. For non-redirectable errors, `render_error_page()` is used.
 
 ## LTI Message launch
 
@@ -91,6 +151,20 @@ class LTI1p3MessageLaunch(MessageLaunchAbstract):
         """
         pass
 
+    def get_redirect(self, url):
+        """
+        This will be invoked when launch validation fails with a redirectable
+        OAuth/OIDC error.
+        """
+        return HttpResponseRedirect(url)
+
+    def render_error_page(self, message, status_code):
+        """
+        This will be invoked when launch validation fails with a local-only
+        error such as `invalid_request_uri` or `server_error`.
+        """
+        return HttpResponse(message, status=status_code)
+
     def prepare_launch(self, preflight_response, **kwargs):
         """
         You could do some other checks and get some contexts from `lti_message_hint` you've set in previous request
@@ -106,10 +180,17 @@ class LTI1p3MessageLaunch(MessageLaunchAbstract):
 
 def lti_resource_link_launch(request, *args, **kwargs):
     platform = get_registered_platform(*args, **kwargs)
-    message_launch = LTI1p3MessageLaunch(request, *args, **kwargs)
+    message_launch = LTI1p3MessageLaunch(request, platform)
 
-    return launch.lti_launch(*args, **kwargs)
+    return message_launch.lti_launch(*args, **kwargs)
 ```
+
+### Launch error response behavior
+
+`lti_launch()` uses the same policy as OIDC login:
+
+- Redirect to the supplied `redirect_uri` for redirectable OAuth/OIDC errors such as `invalid_request`, `unauthorized_client`, `unsupported_response_type`, `invalid_scope`, `access_denied`, and `login_required`.
+- Render a local error page for non-redirectable or server-side failures such as `invalid_request_uri`, `server_error`, and `temporarily_unavailable`.
 
 ## Examples
 
