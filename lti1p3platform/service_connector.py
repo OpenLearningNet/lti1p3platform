@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 import typing as t
+import time
 from urllib.parse import urlencode
 import typing_extensions as te
 
@@ -13,6 +14,7 @@ from .lineitem import TLineItem
 from .score import TScore, UpdateScoreStatus, UPDATE_SCORE_STATUSCODE
 from .request import Request
 from .response import Response
+from .response import generate_link
 from .ltiplatform import LTI1P3PlatformConfAbstract
 from .ags import LtiAgs
 from .nrps import LtiNrps
@@ -354,6 +356,27 @@ class NamesRoleProvisioningService(BasicService):
 
         return res
 
+    def _build_differences_link(self, query_params: t.Dict[str, t.Any]) -> str:
+        # The differences URL is a complete URL carrying an opaque baseline timestamp.
+        params: t.Dict[str, t.Any] = {
+            "since": int(time.time()),
+        }
+
+        if query_params.get("limit"):
+            params["limit"] = query_params["limit"]
+
+        if query_params.get("role"):
+            params["role"] = query_params["role"]
+
+        if query_params.get("rlid"):
+            params["rlid"] = query_params["rlid"]
+
+        return f"{self.nrps.context_memberships_url}?{urlencode(params)}"
+
+    def get_differences_link(self, query_params: t.Dict[str, t.Any]) -> t.Optional[str]:
+        # This could be overridden to return None if the platform doesn't support differences.
+        return self._build_differences_link(query_params)
+
     @authenticate(
         allow_methods=["GET"],
         accept="application/vnd.ims.lti-nrps.v2.membershipcontainer+json",
@@ -363,6 +386,12 @@ class NamesRoleProvisioningService(BasicService):
             raise LtiServiceException("Request context not available", 500)
 
         query_params = self.request.get_data
+        next_query_params = dict(query_params)
+        member_query_params: t.Dict[str, t.Any] = {
+            key: value
+            for key, value in query_params.items()
+            if key in {"page", "limit", "role", "since"}
+        }
 
         resource_link_id = query_params.get("rlid")
         context = self.get_context_by_id()
@@ -380,7 +409,7 @@ class NamesRoleProvisioningService(BasicService):
                 return Response(result=None, code=403, message="Access denied")
 
         response = dataclass_to_dict(res)
-        members_page = self.get_member_data_page(**query_params)
+        members_page = self.get_member_data_page(**member_query_params)
 
         # member data is actually passed to the Tool relies on the agreement
         # between the Platform and the Tool.but it contains user_id, roles,
@@ -388,12 +417,32 @@ class NamesRoleProvisioningService(BasicService):
         # Platform to be shared with the Tool.
         response["members"] = self.clean_members(members_page["content"])
 
+        response_headers: t.Dict[str, str] = {}
+
         if "limit" in query_params and members_page["has_next"]:
             page = query_params.get("page", 1)
-            query_params["page"] = page + 1
+            next_query_params["page"] = page + 1
 
             response[
                 "next"
-            ] = f"{self.nrps.context_memberships_url}?{urlencode(query_params)}"
+            ] = f"{self.nrps.context_memberships_url}?{urlencode(next_query_params)}"
+            response_headers["Link"] = generate_link(response["next"], "next")
 
-        return Response(result=response, code=200, message="success")
+        differences_link = self.get_differences_link(query_params)
+        if differences_link:
+            response["differences"] = differences_link
+            differences_link_header = generate_link(differences_link, "differences")
+
+            if "Link" in response_headers:
+                response_headers[
+                    "Link"
+                ] = f"{response_headers['Link']}, {differences_link_header}"
+            else:
+                response_headers["Link"] = differences_link_header
+
+        return Response(
+            result=response,
+            code=200,
+            message="success",
+            headers=response_headers,
+        )

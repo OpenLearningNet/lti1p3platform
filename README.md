@@ -192,6 +192,113 @@ def lti_resource_link_launch(request, *args, **kwargs):
 - Redirect to the supplied `redirect_uri` for redirectable OAuth/OIDC errors such as `invalid_request`, `unauthorized_client`, `unsupported_response_type`, `invalid_scope`, `access_denied`, and `login_required`.
 - Render a local error page for non-redirectable or server-side failures such as `invalid_request_uri`, `server_error`, and `temporarily_unavailable`.
 
+## LTI Advantage Services
+
+LTI Advantage extends the base launch with three optional services. Use
+`LTIAdvantageMessageLaunchAbstract` instead of `MessageLaunchAbstract` to gain
+access to them. All three methods return `self` so they can be chained.
+
+```python
+from lti1p3platform.message_launch import LTIAdvantageMessageLaunchAbstract
+
+class LTI1p3MessageLaunch(LTIAdvantageMessageLaunchAbstract):
+    # same abstract method implementations as MessageLaunchAbstract …
+    pass
+```
+
+### Deep Linking (`set_dl`)
+
+[LTI Deep Linking 2.0](https://www.imsglobal.org/spec/lti-dl/v2p0/) lets an
+instructor pick content items inside the tool and return them to the platform.
+When `set_dl` is called the launch message type is changed to
+`LtiDeepLinkingRequest` and the platform's deep-link return URL is used as the
+target instead of the normal resource-link launch URL.
+
+```python
+message_launch.set_dl(
+    deep_link_return_url="https://platform.example.com/lti/deeplink/return",
+    title="Select content",
+    description="Choose a resource to embed",
+    accept_multiple=True,          # allow selecting more than one item
+    auto_create=True,              # platform auto-creates items without extra confirmation
+    accept_types={"ltiResourceLink", "link", "file"},
+    accept_presentation_document_targets={"iframe", "window"},
+)
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `deep_link_return_url` | `str` | — | Platform URL the tool POSTs selected items back to. |
+| `title` | `str` | `""` | Human-readable title for the request. |
+| `description` | `str` | `""` | Human-readable description. |
+| `accept_multiple` | `bool` | `False` | Whether the tool may return multiple items. |
+| `auto_create` | `bool` | `True` | Whether the platform should auto-create items. |
+| `accept_types` | `set[str] \| None` | `None` (all) | Allowed content-item types. |
+| `extra_data` | `dict \| None` | `None` | Additional platform-defined data. |
+| `accept_presentation_document_targets` | `set[str] \| None` | `None` (all) | Allowed document targets. |
+
+### Assignments and Grades Service (`set_ags`)
+
+[LTI AGS 2.0](https://www.imsglobal.org/spec/lti-ags/v2p0/) allows the tool to
+read and write grades back to the platform gradebook.
+
+```python
+message_launch.set_ags(
+    lineitems_url="https://platform.example.com/lti/lineitems/",
+    lineitem_url="https://platform.example.com/lti/lineitems/42",  # optional
+    allow_creating_lineitems=True,
+    results_service_enabled=True,
+    scores_service_enabled=True,
+)
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `lineitems_url` | `str` | — | Platform endpoint for the line-items container. |
+| `lineitem_url` | `str \| None` | `None` | Endpoint for a single, pre-existing line item. |
+| `allow_creating_lineitems` | `bool` | `True` | Whether the tool may create new line items. |
+| `results_service_enabled` | `bool` | `True` | Whether the Results service is advertised. |
+| `scores_service_enabled` | `bool` | `True` | Whether the Scores service is advertised. |
+
+### Names and Role Provisioning Service (`set_nrps`)
+
+[LTI NRPS 2.0](https://www.imsglobal.org/spec/lti-nrps/v2p0/) lets the tool
+retrieve the enrollment roster for the current context (names, roles, and LIS
+person source-dids).
+
+```python
+message_launch.set_nrps(
+    context_memberships_url="https://platform.example.com/lti/memberships/",
+)
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `context_memberships_url` | `str` | Platform endpoint the tool calls to fetch the membership list. |
+
+### Combining all three services
+
+All three `set_*` methods return `self`, so they can be chained together:
+
+```python
+def lti_advantage_launch(request, *args, **kwargs):
+    platform = get_registered_platform(*args, **kwargs)
+    message_launch = LTI1p3MessageLaunch(request, platform)
+
+    message_launch \
+        .set_dl(
+            deep_link_return_url="https://platform.example.com/lti/deeplink/return",
+        ) \
+        .set_ags(
+            lineitems_url="https://platform.example.com/lti/lineitems/",
+        ) \
+        .set_nrps(
+            context_memberships_url="https://platform.example.com/lti/memberships/",
+        )
+
+    return message_launch.lti_launch(*args, **kwargs)
+```
+
 ## Examples
 
 [Django example](examples/django_platform/README.md)

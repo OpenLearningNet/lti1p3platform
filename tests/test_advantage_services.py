@@ -14,6 +14,7 @@ Covers:
 import time
 import typing as t
 from unittest.mock import patch
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 
@@ -232,6 +233,19 @@ class _NRPSImpl(NamesRoleProvisioningService):
 
     def get_context_by_id(self) -> Context:
         return self._CONTEXT
+
+    def is_resource_link_valid(self, context_id: str, resource_link_id: str) -> bool:
+        return bool(context_id and resource_link_id)
+
+
+class _CustomDifferencesNRPSImpl(_NRPSImpl):
+    def get_differences_link(self, query_params: t.Dict[str, t.Any]) -> t.Optional[str]:
+        return "https://platform.example/custom-differences-token"
+
+
+class _NoDifferencesNRPSImpl(_NRPSImpl):
+    def get_differences_link(self, query_params: t.Dict[str, t.Any]) -> t.Optional[str]:
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -705,6 +719,9 @@ def test_handle_get_members_success(platform: PlatformConf, nrps_token: str) -> 
     assert "members" in resp.result
     assert len(resp.result["members"]) == 2
     assert resp.result["context"]["id"] == "course-1"
+    assert "differences" in resp.result
+    assert "Link" in resp.headers
+    assert "rel=differences" in resp.headers["Link"]
 
 
 def test_handle_get_members_invalid_member_data_returns_400(
@@ -740,6 +757,73 @@ def test_handle_get_members_pagination_next_link(
         resp = nrps.handle_resp(nrps.handle_get_members)
     assert resp.code == 200
     assert "next" in resp.result
+    assert "Link" in resp.headers
+    assert "rel=next" in resp.headers["Link"]
+    assert "rel=differences" in resp.headers["Link"]
+
+
+def test_handle_get_members_differences_link_preserves_role_and_rlid(
+    platform: PlatformConf, nrps_token: str
+) -> None:
+    nrps = _make_nrps(
+        platform,
+        nrps_token,
+        get_data={"role": "Learner", "rlid": "resource-1", "limit": 2, "page": 1},
+    )
+    resp = nrps.handle_resp(nrps.handle_get_members)
+    assert resp.code == 200
+    differences_link = resp.result["differences"]
+    parsed = urlparse(differences_link)
+    params = parse_qs(parsed.query)
+
+    assert parsed.path.endswith("/memberships")
+    assert params["limit"] == ["2"]
+    assert params["role"] == ["Learner"]
+    assert params["rlid"] == ["resource-1"]
+    assert "since" in params
+
+
+def test_handle_get_members_uses_custom_differences_link(
+    platform: PlatformConf, nrps_token: str
+) -> None:
+    req = make_request(
+        method="GET",
+        headers={"Authorization": f"Bearer {nrps_token}"},
+        get_data={"limit": 1},
+    )
+    nrps = _CustomDifferencesNRPSImpl(
+        req,
+        platform,
+        context_memberships_url=MEMBERSHIPS_URL,
+    )
+    resp = nrps.handle_resp(nrps.handle_get_members)
+
+    assert resp.code == 200
+    assert (
+        resp.result["differences"]
+        == "https://platform.example/custom-differences-token"
+    )
+    assert "rel=differences" in resp.headers["Link"]
+    assert "custom-differences-token" in resp.headers["Link"]
+
+
+def test_handle_get_members_can_disable_differences_link(
+    platform: PlatformConf, nrps_token: str
+) -> None:
+    req = make_request(
+        method="GET",
+        headers={"Authorization": f"Bearer {nrps_token}"},
+    )
+    nrps = _NoDifferencesNRPSImpl(
+        req,
+        platform,
+        context_memberships_url=MEMBERSHIPS_URL,
+    )
+    resp = nrps.handle_resp(nrps.handle_get_members)
+
+    assert resp.code == 200
+    assert "differences" not in resp.result
+    assert "Link" not in resp.headers
 
 
 def test_handle_get_members_missing_auth(platform: PlatformConf) -> None:
