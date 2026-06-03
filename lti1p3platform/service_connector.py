@@ -306,6 +306,7 @@ class AssignmentsGradesService(BasicService):
 
 class NamesRoleProvisioningService(BasicService):
     request = None
+    CONTEXT_ROLE_PREFIX = "http://purl.imsglobal.org/vocab/lis/v2/membership#"
 
     def __init__(
         self,
@@ -339,6 +340,33 @@ class NamesRoleProvisioningService(BasicService):
 
     def is_resource_link_valid(self, context_id: str, resource_link_id: str) -> bool:
         raise NotImplementedError
+
+    def _build_role_filter_set(self, role: t.Optional[str]) -> t.Set[str]:
+        if not role:
+            return set()
+
+        requested = role.strip()
+        if not requested:
+            return set()
+
+        role_values = {requested}
+
+        # NRPS allows simplified context role values such as role=Learner.
+        # Ref: https://www.imsglobal.org/spec/lti-nrps/v2p0#role-query-parameter
+        if ":" not in requested and "/" not in requested and "#" not in requested:
+            role_values.add(f"{self.CONTEXT_ROLE_PREFIX}{requested}")
+
+        return role_values
+
+    def matches_role_filter(
+        self, member_roles: t.Iterable[str], role: t.Optional[str]
+    ) -> bool:
+        filters = self._build_role_filter_set(role)
+        if not filters:
+            return True
+
+        role_set = set(member_roles)
+        return bool(role_set & filters)
 
     def clean_members(self, members: t.List[t.Any]) -> t.List[t.Any]:
         res = []
