@@ -1,6 +1,6 @@
 from django.http import JsonResponse
 from http import HTTPStatus
-from lti1p3platform.response import Response, generate_next_link
+from lti1p3platform.response import Response, generate_link
 
 
 def wrap_json_resp(resp: Response) -> JsonResponse:
@@ -14,8 +14,28 @@ def wrap_json_resp(resp: Response) -> JsonResponse:
             data, status=resp.code, content_type=resp.media_type, safe=False
         )
 
+        for key, value in resp.headers.items():
+            response.headers[key] = value
+
         if resp.result and "next" in resp.result and resp.result["next"]:
-            response.headers["Link"] = generate_next_link(resp.result["next"])
+            next_link = generate_link(resp.result["next"], "next")
+            if response.headers.get("Link"):
+                if next_link not in response.headers["Link"]:
+                    response.headers[
+                        "Link"
+                    ] = f"{response.headers['Link']}, {next_link}"
+            else:
+                response.headers["Link"] = next_link
+
+        if resp.result and "differences" in resp.result and resp.result["differences"]:
+            differences_link = generate_link(resp.result["differences"], "differences")
+            if response.headers.get("Link"):
+                if differences_link not in response.headers["Link"]:
+                    response.headers[
+                        "Link"
+                    ] = f"{response.headers['Link']}, {differences_link}"
+            else:
+                response.headers["Link"] = differences_link
 
         return response
     else:

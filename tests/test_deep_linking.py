@@ -80,7 +80,7 @@ def test_get_lti_deep_linking_launch_claim_accept_multiple_and_auto_create():
     settings = claim[
         "https://purl.imsglobal.org/spec/lti-dl/claim/deep_linking_settings"
     ]
-    assert settings["accept_multiple"] is True
+    assert settings["accept_multiple"] is False
     assert settings["auto_create"] is True
 
 

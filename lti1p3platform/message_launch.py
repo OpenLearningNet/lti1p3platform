@@ -641,12 +641,21 @@ class LTIAdvantageMessageLaunchAbstract(MessageLaunchAbstract):
         deep_link_return_url: str,
         title: str = "",
         description: str = "",
+        accept_multiple: bool = False,
+        auto_create: bool = True,
         accept_types: t.Optional[t.Set[str]] = None,
         extra_data: t.Optional[t.Dict[str, t.Any]] = None,
+        accept_presentation_document_targets: t.Optional[t.Set[str]] = None,
     ) -> LTIAdvantageMessageLaunchAbstract:
         self._dl = LtiDeepLinking(deep_link_return_url)
         self._deep_linking_launch_data = self._dl.get_lti_deep_linking_launch_claim(
-            title, description, accept_types, extra_data
+            title,
+            description,
+            accept_multiple,
+            auto_create,
+            accept_types,
+            extra_data,
+            accept_presentation_document_targets,
         )
 
         return self

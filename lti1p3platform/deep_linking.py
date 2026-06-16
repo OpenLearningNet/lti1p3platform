@@ -90,13 +90,17 @@ class LtiDeepLinking:
         """
         self.deep_linking_return_url = deep_linking_return_url
 
+    # pylint: disable=too-many-arguments
     def get_lti_deep_linking_launch_claim(
         self,
         title: str = "",
         description: str = "",
+        accept_multiple: bool = False,
+        auto_create: bool = True,
         accept_types: t.Optional[t.Set[str]] = None,
         extra_data: t.Optional[t.Dict[str, t.Any]] = None,
-    ) -> t.Dict[str, t.Any]:
+        accept_presentation_document_targets: t.Optional[t.Set[str]] = None,
+    ) -> t.Dict[str, t.Dict[str, t.Any]]:
         """
         Generate Deep Linking Launch Claim for LTI message
 
@@ -158,13 +162,14 @@ class LtiDeepLinking:
                 raise LtiDeepLinkingContentTypeNotSupported
 
         # Consctruct Deep Linking Claim
-        deep_linking_claim = {
+        deep_linking_claim: t.Dict[str, t.Any] = {
             "accept_types": accept_types_claim,
-            "accept_presentation_document_targets": ["iframe", "window", "embed"],
+            "accept_presentation_document_targets": accept_presentation_document_targets
+            or ["iframe", "window", "embed"],
             # Accept multiple items on from Deep Linking responses.
-            "accept_multiple": True,
+            "accept_multiple": accept_multiple,
             # Automatically saves Content Items without asking to user
-            "auto_create": True,
+            "auto_create": auto_create,
             # Other parameters
             "title": title,
             "text": description,
