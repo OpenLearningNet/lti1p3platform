@@ -98,6 +98,7 @@ class LtiDeepLinking:
         accept_multiple: bool = False,
         auto_create: bool = True,
         accept_types: t.Optional[t.Set[str]] = None,
+        accept_lineitem: bool = False,
         extra_data: t.Optional[t.Dict[str, t.Any]] = None,
         accept_presentation_document_targets: t.Optional[t.Set[str]] = None,
     ) -> t.Dict[str, t.Dict[str, t.Any]]:
@@ -170,6 +171,8 @@ class LtiDeepLinking:
             "accept_multiple": accept_multiple,
             # Automatically saves Content Items without asking to user
             "auto_create": auto_create,
+            # Accept line items in Content Items from Deep Linking responses.
+            "accept_lineitem": accept_lineitem,
             # Other parameters
             "title": title,
             "text": description,
