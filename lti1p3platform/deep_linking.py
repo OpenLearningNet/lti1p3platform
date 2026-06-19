@@ -21,7 +21,7 @@ from .constants import LTI_DEEP_LINKING_ACCEPTED_TYPES
 from .exceptions import LtiDeepLinkingContentTypeNotSupported
 
 
-# pylint: disable=too-few-public-methods
+# pylint: disable=too-few-public-methods, too-many-arguments
 class LtiDeepLinking:
     """
     LTI 1.3 Advantage - Deep Linking Service Handler
