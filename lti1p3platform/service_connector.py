@@ -13,8 +13,7 @@ from .exceptions import (
 from .lineitem import TLineItem
 from .score import TScore, UpdateScoreStatus, UPDATE_SCORE_STATUSCODE
 from .request import Request
-from .response import Response
-from .response import generate_link
+from .response import Response, generate_link
 from .ltiplatform import LTI1P3PlatformConfAbstract
 from .ags import LtiAgs
 from .nrps import LtiNrps
@@ -202,15 +201,14 @@ class AssignmentsGradesService(BasicService):
         try:
             results = self.get_results(line_item_id, **lti_params)
 
+            response = Response(result=results, code=200, message="success")
             if results["has_next"]:
                 page = lti_params.get("page", 1)
                 lti_params["page"] = page + 1
+                next_url = f"{self.ags.lineitem_url}/results?{urlencode(lti_params)}"
+                response.set_header("Link", generate_link(next_url, "next"))
 
-                results[
-                    "next"
-                ] = f"{self.ags.lineitem_url}/results?{urlencode(lti_params)}"
-
-            return Response(result=results, code=200, message="success")
+            return response
         except LineItemNotFoundException:
             return Response(result=None, code=404, message="Not found")
 
@@ -245,17 +243,18 @@ class AssignmentsGradesService(BasicService):
         lti_params = self.request.get_data
 
         lineitems = self.find_lineitems(**lti_params)
-        if lineitems["has_next"]:
-            page = lti_params.get("page", 1)
-            lti_params["page"] = page + 1
-
-            lineitems["next"] = f"{self.ags.lineitems_url}?{urlencode(lti_params)}"
-
-        return Response(
+        response = Response(
             result=lineitems,
             code=200,
             message="success",
         )
+        if lineitems["has_next"]:
+            page = lti_params.get("page", 1)
+            lti_params["page"] = page + 1
+            next_url = f"{self.ags.lineitems_url}?{urlencode(lti_params)}"
+            response.set_header("Link", generate_link(next_url, "next"))
+
+        return response
 
     @authenticate(
         allow_methods=["POST"], accept="application/vnd.ims.lis.v2.lineitem+json"

@@ -454,7 +454,7 @@ def test_handle_get_lineitems_filtered_by_tag(
 def test_handle_get_lineitems_pagination_next_link(
     platform: PlatformConf, ags_token: str
 ) -> None:
-    """When has_next is True, a 'next' URL is added to the result."""
+    """When has_next is True, a Link header with rel=next is added."""
     ags = _make_ags(platform, ags_token, get_data={"limit": 1, "page": 1})
     # Add a second line item so limit=1 triggers has_next
     ags._lineitems.append(  # type: ignore[attr-defined]
@@ -467,7 +467,8 @@ def test_handle_get_lineitems_pagination_next_link(
     ):
         resp = ags.handle_resp(ags.handle_get_lineitems)
     assert resp.code == 200
-    assert "next" in resp.result
+    assert "Link" in resp.headers
+    assert "rel=next" in resp.headers["Link"]
 
 
 # ===========================================================================
@@ -645,7 +646,7 @@ def test_handle_get_results_not_found(platform: PlatformConf, ags_token: str) ->
 def test_handle_get_results_pagination_next_link(
     platform: PlatformConf, ags_token: str
 ) -> None:
-    """When get_results reports has_next=True, a 'next' URL is added."""
+    """When get_results reports has_next=True, a Link header with rel=next is added."""
     ags = _make_ags(platform, ags_token, get_data={"limit": 1, "page": 1})
     with patch.object(
         ags,
@@ -654,7 +655,8 @@ def test_handle_get_results_pagination_next_link(
     ):
         resp = ags.handle_resp(ags.handle_get_results, line_item_id=LINEITEM_URL)
     assert resp.code == 200
-    assert "next" in resp.result
+    assert "Link" in resp.headers
+    assert "rel=next" in resp.headers["Link"]
 
 
 # ===========================================================================
@@ -744,7 +746,7 @@ def test_handle_get_members_invalid_member_data_returns_400(
 def test_handle_get_members_pagination_next_link(
     platform: PlatformConf, nrps_token: str
 ) -> None:
-    """When has_next is True and limit is set, a 'next' URL appears in result."""
+    """When has_next is True and limit is set, a Link header with rel=next is added."""
     nrps = _make_nrps(platform, nrps_token, get_data={"limit": 1, "page": 1})
     with patch.object(
         nrps,
