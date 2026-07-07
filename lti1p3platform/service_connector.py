@@ -226,9 +226,9 @@ class AssignmentsGradesService(BasicService):
 
         # TODO: validate score
         try:
-            status = self.update_score(line_item_id, score)
-            code = UPDATE_SCORE_STATUSCODE.get(status, 200)
-            return Response(result=None, code=code, message=status.value)
+            self.update_score(line_item_id, score)
+            # Return 204 No Content if the score was successfully updated
+            return Response(result=None, code=204, message="")
         except LineItemNotFoundException:
             return Response(result=None, code=404, message="Not found")
 
@@ -289,7 +289,7 @@ class AssignmentsGradesService(BasicService):
             update_data = self.request.json
             update_data.update({"id": line_item_id})
             updated_lineitem = self.update_lineitem(t.cast(TLineItem, update_data))
-            return Response(result=updated_lineitem, code=200, message="success")
+            return Response(result=updated_lineitem, code=201, message="success")
         except LineItemNotFoundException:
             return Response(result=None, code=404, message="Line item not found")
 

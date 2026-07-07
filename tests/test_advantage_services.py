@@ -565,11 +565,11 @@ def test_handle_update_score_created(platform: PlatformConf) -> None:
     }
     ags = _make_ags(platform, token, method="POST", json=score_data)
     resp = ags.handle_resp(ags.handle_update_score, line_item_id=LINEITEM_URL)
-    assert resp.code == 201
+    assert resp.code == 204
 
 
 def test_handle_update_score_success_on_second_call(platform: PlatformConf) -> None:
-    """Updating the same line item twice yields 200 (UpdateScoreStatus.SUCCESS)."""
+    """Score publish returns 204 No Content for both create and update."""
     token = make_bearer_token(AGS_SCOPE_SCORE)
     score_data: TScore = {
         "userId": 42,
@@ -589,7 +589,7 @@ def test_handle_update_score_success_on_second_call(platform: PlatformConf) -> N
     )
     ags.request = req2  # type: ignore[assignment]
     resp = ags.handle_resp(ags.handle_update_score, line_item_id=LINEITEM_URL)
-    assert resp.code == 200
+    assert resp.code == 204
 
 
 def test_handle_update_score_not_found(platform: PlatformConf) -> None:
