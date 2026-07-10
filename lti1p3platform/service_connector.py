@@ -11,7 +11,7 @@ from .exceptions import (
     PlatformNotReadyException,
 )
 from .lineitem import TLineItem
-from .score import TScore, UpdateScoreStatus, UPDATE_SCORE_STATUSCODE
+from .score import TScore, UpdateScoreStatus
 from .request import Request
 from .response import Response, generate_link
 from .ltiplatform import LTI1P3PlatformConfAbstract
