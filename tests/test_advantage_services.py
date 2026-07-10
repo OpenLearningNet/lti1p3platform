@@ -513,7 +513,7 @@ def test_handle_update_lineitem_success(platform: PlatformConf) -> None:
     token = make_bearer_token(AGS_SCOPE_LINEITEM)
     ags = _make_ags(platform, token, method="PUT", json={"label": "Updated Label"})
     resp = ags.handle_resp(ags.handle_update_lineitem, line_item_id=LINEITEM_URL)
-    assert resp.code == 200
+    assert resp.code == 201
     assert resp.result["label"] == "Updated Label"
 
 
