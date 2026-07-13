@@ -364,4 +364,3 @@ def test_prepare_preflight_url_uses_ampersand_when_existing_query_has_valueless_
 
     assert url.startswith("https://tool.example.com/login?abc&")
     assert url.count("?") == 1
-
