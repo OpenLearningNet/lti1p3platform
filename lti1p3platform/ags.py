@@ -213,12 +213,6 @@ class LtiAgs:
             # link has no line item (or many), tool can query and add line items
             claim_values["lineitem"] = self.lineitem_url
 
-            if not self.lineitems_url:
-                # link has a single line item, tool can only POST score
-                for scope in claim_values["scope"]:
-                    if scope != "https://purl.imsglobal.org/spec/lti-ags/scope/score":
-                        claim_values["scope"].remove(scope)
-
         if self.lineitems_url:
             # link has a single line item, tool can only POST score
             claim_values["lineitems"] = self.lineitems_url

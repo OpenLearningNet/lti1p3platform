@@ -92,3 +92,21 @@ def test_get_lti_deep_linking_launch_claim_presentation_targets():
     ]
     assert "iframe" in settings["accept_presentation_document_targets"]
     assert "window" in settings["accept_presentation_document_targets"]
+
+
+def test_get_lti_deep_linking_launch_claim_with_accept_lineitem():
+    deep_linker = LtiDeepLinking("https://platform.example.com/deeplink_return")
+    claim = deep_linker.get_lti_deep_linking_launch_claim(accept_lineitem=True)
+    settings = claim[
+        "https://purl.imsglobal.org/spec/lti-dl/claim/deep_linking_settings"
+    ]
+    assert settings["accept_lineitem"] is True
+
+
+def test_get_lti_deep_linking_launch_claim_accept_lineitem_defaults_false():
+    deep_linker = LtiDeepLinking("https://platform.example.com/deeplink_return")
+    claim = deep_linker.get_lti_deep_linking_launch_claim()
+    settings = claim[
+        "https://purl.imsglobal.org/spec/lti-dl/claim/deep_linking_settings"
+    ]
+    assert settings["accept_lineitem"] is False

@@ -644,6 +644,7 @@ class LTIAdvantageMessageLaunchAbstract(MessageLaunchAbstract):
         accept_multiple: bool = False,
         auto_create: bool = True,
         accept_types: t.Optional[t.Set[str]] = None,
+        accept_lineitem: bool = False,
         extra_data: t.Optional[t.Dict[str, t.Any]] = None,
         accept_presentation_document_targets: t.Optional[t.Set[str]] = None,
     ) -> LTIAdvantageMessageLaunchAbstract:
@@ -654,6 +655,7 @@ class LTIAdvantageMessageLaunchAbstract(MessageLaunchAbstract):
             accept_multiple,
             auto_create,
             accept_types,
+            accept_lineitem,
             extra_data,
             accept_presentation_document_targets,
         )
