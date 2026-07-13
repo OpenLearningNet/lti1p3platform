@@ -322,3 +322,46 @@ def test_get_error_response_redirects_value_error_as_invalid_request():
 
     assert response["type"] == "redirect"
     assert "error=invalid_request" in response["url"]
+
+
+def test_prepare_preflight_url_includes_required_params():
+    login = _make_oidc_login()
+
+    url = login.prepare_preflight_url("user-123")
+
+    assert url.startswith(PLATFORM_CONFIG["oidc_login_url"] + "?")
+    assert "iss=" in url
+    assert "login_hint=user-123" in url
+    assert "lti_message_hint=resource-link-123" in url
+    assert "target_link_uri=" in url
+
+
+def test_prepare_preflight_url_uses_question_mark_when_no_existing_query():
+    login = _make_oidc_login()
+    login._registration.set_oidc_login_url("https://tool.example.com/login")
+
+    url = login.prepare_preflight_url("user-123")
+
+    assert url.startswith("https://tool.example.com/login?")
+    assert url.count("?") == 1
+
+
+def test_prepare_preflight_url_uses_ampersand_when_existing_query_has_pairs():
+    login = _make_oidc_login()
+    login._registration.set_oidc_login_url("https://tool.example.com/login?foo=bar")
+
+    url = login.prepare_preflight_url("user-123")
+
+    assert url.startswith("https://tool.example.com/login?foo=bar&")
+    assert url.count("?") == 1
+
+
+def test_prepare_preflight_url_uses_ampersand_when_existing_query_has_valueless_param():
+    login = _make_oidc_login()
+    login._registration.set_oidc_login_url("https://tool.example.com/login?abc")
+
+    url = login.prepare_preflight_url("user-123")
+
+    assert url.startswith("https://tool.example.com/login?abc&")
+    assert url.count("?") == 1
+

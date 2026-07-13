@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import typing as t
 
-from urllib.parse import urlencode, urlparse, parse_qsl
+from urllib.parse import urlencode, urlparse
 from abc import ABC, abstractmethod
 
 from . import exceptions
@@ -231,18 +231,11 @@ class OIDCLoginAbstract(ABC):
             raise exceptions.PlatformNotReadyException(
                 "OIDC login URL is not configured in registration"
             )
-        parsed_url = urlparse(oidc_login_url)
-        query = parsed_url.query
-
-        if isinstance(query, bytes):
-            query = query.decode("utf-8")
-
-        query_dict = dict(parse_qsl(query))
-        if parsed_url.query and not query_dict:
-            # handle some weird cases when query is not empty but parse_qsl returns empty dict
-            return f"{oidc_login_url}&{encoded_params}"
-
-        return f"{oidc_login_url}?{encoded_params}"
+        # A query string is any non-empty substring after "?", including
+        # value-less params (e.g. "?abc"). urlparse(...).query reflects this
+        # directly, so use it to decide the separator.
+        separator = "&" if urlparse(oidc_login_url).query else "?"
+        return f"{oidc_login_url}{separator}{encoded_params}"
 
     @abstractmethod
     def get_redirect(self, url: str) -> t.Any:
