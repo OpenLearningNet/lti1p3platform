@@ -204,7 +204,7 @@ class AssignmentsGradesService(BasicService):
             response = Response(result=results, code=200, message="success")
             if results["has_next"]:
                 page = lti_params.get("page", 1)
-                lti_params["page"] = page + 1
+                lti_params["page"] = int(page) + 1
                 next_url = f"{self.ags.lineitem_url}/results?{urlencode(lti_params)}"
                 response.set_header("Link", generate_link(next_url, "next"))
 
@@ -250,7 +250,7 @@ class AssignmentsGradesService(BasicService):
         )
         if lineitems["has_next"]:
             page = lti_params.get("page", 1)
-            lti_params["page"] = page + 1
+            lti_params["page"] = int(page) + 1
             next_url = f"{self.ags.lineitems_url}?{urlencode(lti_params)}"
             response.set_header("Link", generate_link(next_url, "next"))
 
@@ -448,7 +448,7 @@ class NamesRoleProvisioningService(BasicService):
 
         if "limit" in query_params and members_page["has_next"]:
             page = query_params.get("page", 1)
-            next_query_params["page"] = page + 1
+            next_query_params["page"] = int(page) + 1
 
             response[
                 "next"
