@@ -22,11 +22,13 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 import requests
+import jwt
 
 from lti1p3platform.jwt_helper import jwt_encode
 from lti1p3platform.ltiplatform import LTI1P3PlatformConfAbstract
 from lti1p3platform.registration import Registration as _Registration, RegistrationError
 from lti1p3platform.exceptions import (
+    get_error_code,
     InvalidClientAssertion,
     InvalidJwtToken,
     InvalidKeySetUrl,
@@ -644,6 +646,90 @@ def test_get_access_token_unsupported_scope_returns_empty():
     assert result["scope"] == ""
     assert result["token_type"] == "bearer"
     assert result["expires_in"] == 3600
+
+
+def _token_request(client_assertion):
+    return {
+        "grant_type": "client_credentials",
+        "client_assertion_type": (
+            "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
+        ),
+        "client_assertion": client_assertion,
+        "scope": "",
+    }
+
+
+def _assertion_without_jti():
+    claims = {
+        "iss": PLATFORM_CONFIG["client_id"],
+        "sub": PLATFORM_CONFIG["client_id"],
+        "aud": [PLATFORM_CONFIG["access_token_url"]],
+        "iat": int(time.time()) - 5,
+        "exp": int(time.time()) + 60,
+    }
+    return _make_tool_jwt(claims)
+
+
+def _assertion_with_wrong_signature():
+    jwk = _Registration.get_jwk(TOOL_PRIVATE_KEY_PEM)
+    return _make_tool_jwt(
+        {
+            "iss": PLATFORM_CONFIG["client_id"],
+            "sub": PLATFORM_CONFIG["client_id"],
+            "aud": [PLATFORM_CONFIG["access_token_url"]],
+            "iat": int(time.time()) - 5,
+            "exp": int(time.time()) + 60,
+            "jti": str(uuid.uuid4()),
+        },
+        private_key=RSA_PRIVATE_KEY_PEM,
+        headers={"kid": jwk.get("kid")},
+    )
+
+
+@pytest.mark.parametrize(
+    "make_assertion, cause",
+    [
+        (
+            lambda: _make_valid_assertion(extra={"exp": int(time.time()) - 10}),
+            jwt.ExpiredSignatureError,
+        ),
+        (
+            lambda: _make_valid_assertion(extra={"aud": "https://other.example.com"}),
+            jwt.InvalidAudienceError,
+        ),
+        (_assertion_with_wrong_signature, jwt.InvalidSignatureError),
+        (_assertion_without_jti, MissingRequiredClaim),
+        (lambda: "not-a-jwt", InvalidJwtToken),
+    ],
+)
+def test_get_access_token_invalid_assertion_is_invalid_client(make_assertion, cause):
+    platform = PlatformConf()
+    with pytest.raises(InvalidClientAssertion) as exc_info:
+        platform.get_access_token(_token_request(make_assertion()))
+    assert isinstance(exc_info.value.__cause__, cause)
+    assert get_error_code(exc_info.value) == "invalid_client"
+
+
+@pytest.mark.parametrize(
+    "key_set_error", [InvalidKeySetUrl(), LtiException("fetch failed")]
+)
+def test_get_access_token_key_set_failure_is_invalid_client(key_set_error):
+    platform = PlatformConf()
+    with patch.object(platform, "get_tool_key_set", side_effect=key_set_error):
+        with pytest.raises(InvalidClientAssertion) as exc_info:
+            platform.get_access_token(_token_request(_make_valid_assertion()))
+    assert exc_info.value.__cause__ is key_set_error
+
+
+def test_get_access_token_platform_not_ready_passes_through():
+    platform = PlatformConf()
+    with patch.object(
+        platform,
+        "get_tool_key_set",
+        side_effect=PlatformNotReadyException("no tool key set"),
+    ):
+        with pytest.raises(PlatformNotReadyException):
+            platform.get_access_token(_token_request(_make_valid_assertion()))
 
 
 # ---------------------------------------------------------------------------

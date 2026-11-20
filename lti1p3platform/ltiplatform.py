@@ -673,8 +673,18 @@ class LTI1P3PlatformConfAbstract(ABC):
             AccessTokenResponse: Dictionary with 'access_token', 'expires_in', 'token_type', 'scope'
 
         Raises:
+            MissingRequiredClaim: If a required form parameter is missing
+                (`invalid_request`)
             UnsupportedGrantType: If grant_type is not client_credentials
-            LtiException: Various validation failures (see _validate_tool_access_token_assertion)
+                (`unsupported_grant_type`)
+            InvalidClientAssertion: If client_assertion_type is wrong or the
+                client_assertion JWT fails any check, including signature,
+                expiry, audience, claims, replay and tool key set retrieval
+                (`invalid_client`, RFC 7523 §3.2)
+            PlatformNotReadyException: If the platform registration is incomplete
+
+        Use `get_access_token_error_response` to turn these exceptions into an
+        RFC 6749 §5.2 error response.
         """
         if self._registration is None:
             raise exceptions.PlatformNotReadyException("Registration not yet set")
@@ -708,11 +718,25 @@ class LTI1P3PlatformConfAbstract(ABC):
                 "Access token URL is not configured"
             )
 
-        # Validate JWT token
-        decoded_assertion = self.tool_validate_and_decode(
-            token_request_data["client_assertion"], audience=expected_audience
-        )
-        self._validate_tool_access_token_assertion(decoded_assertion, expected_audience)
+        # RFC 7523 §3.2: any failure to validate the client assertion JWT is
+        # reported as `invalid_client`, so normalise the underlying errors.
+        try:
+            decoded_assertion = self.tool_validate_and_decode(
+                token_request_data["client_assertion"], audience=expected_audience
+            )
+            self._validate_tool_access_token_assertion(
+                decoded_assertion, expected_audience
+            )
+        except (
+            InvalidJwtToken,
+            MissingRequiredClaim,
+            InvalidKeySetUrl,
+            LtiException,
+            jwt.PyJWTError,
+            ValueError,
+            TypeError,
+        ) as exc:
+            raise InvalidClientAssertion("Invalid client_assertion") from exc
 
         # Check scopes and only return valid and supported ones
         valid_scopes = []

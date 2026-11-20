@@ -5,6 +5,7 @@ disable=
     C0116, # missing-function-docstring
     W0511, # fixme
     R0801, # duplicate-code
+    R0917, # too-many-positional-arguments (new in pylint 3.3; fixing it changes public signatures)
 
 extension-pkg-whitelist=pydantic
 ignore=framework, migrations

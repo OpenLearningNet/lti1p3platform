@@ -46,7 +46,7 @@ def wrap_json_resp(resp: Response) -> JsonResponse:
 
         problem_type = resp.problem_type or "about:blank"
 
-        return JsonResponse(
+        response = JsonResponse(
             {
                 "type": problem_type,
                 "title": title,
@@ -56,3 +56,18 @@ def wrap_json_resp(resp: Response) -> JsonResponse:
             status=resp.code,
             content_type="application/problem+json",
         )
+
+        for key, value in resp.headers.items():
+            response[key] = value
+
+        return response
+
+
+def wrap_access_token_error_resp(resp: Response) -> JsonResponse:
+    """Return an RFC 6749 §5.2 token error as plain JSON (not problem+json)."""
+    response = JsonResponse(resp.result, status=resp.code, content_type=resp.media_type)
+
+    for key, value in resp.headers.items():
+        response[key] = value
+
+    return response

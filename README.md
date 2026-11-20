@@ -307,9 +307,9 @@ def lti_advantage_launch(request, *args, **kwargs):
 
 ## Run test
 
-Prerequisite: tox and python 3.7, 3.8, 3.9, 3.10
+Prerequisite: tox, Poetry and python 3.10, 3.11, 3.12, 3.13
 
-If you are using pyenv virtualenv, you might need to install all python versions and run `pyenv local 3.7.x 3.8.x 3.9.x 3.10.x` at the first time.
+If you are using pyenv virtualenv, you might need to install all python versions and run `pyenv local 3.10.x 3.11.x 3.12.x 3.13.x` at the first time.
 
 ```bash
 cd lti1p3platform
