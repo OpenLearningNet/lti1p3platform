@@ -1,3 +1,5 @@
+import typing as t
+
 from lti1p3platform import error_codes
 
 
@@ -159,11 +161,17 @@ class InternalSigningError(Exception):
 class LtiServiceException(Exception):
     code = error_codes.SERVER_ERROR
 
-    def __init__(self, message: str, status_code: int) -> None:
+    def __init__(
+        self,
+        message: str,
+        status_code: int,
+        headers: t.Optional[t.Dict[str, str]] = None,
+    ) -> None:
         super().__init__(message)
 
         self.status_code = status_code
         self.message = message
+        self.headers: t.Dict[str, str] = headers or {}
 
 
 class LineItemNotFoundException(LtiException):

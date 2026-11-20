@@ -9,11 +9,19 @@ from django.http import JsonResponse
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 
+from lti1p3platform.exceptions import (
+    InvalidClientAssertion,
+    MissingRequiredClaim,
+    PlatformNotReadyException,
+    UnsupportedGrantType,
+)
 from lti1p3platform.framework.django.message_launch import DjangoLTI1P3MessageLaunch
 from lti1p3platform.framework.django.oidc_login import DjangoAPIOIDCLogin
 from lti1p3platform.framework.django.request import DjangoRequest
+from lti1p3platform.framework.django.response import wrap_access_token_error_resp
 from lti1p3platform.ltiplatform import LTI1P3PlatformConfAbstract
 from lti1p3platform.registration import Registration
+from lti1p3platform.token_errors import get_access_token_error_response
 
 from .helpers import get_url
 
@@ -181,7 +189,15 @@ def access_token(request):
     platform = get_registered_platform()
     token_data = request.POST.dict()
 
-    return JsonResponse(platform.get_access_token(token_data))
+    try:
+        return JsonResponse(platform.get_access_token(token_data))
+    except (
+        MissingRequiredClaim,
+        UnsupportedGrantType,
+        InvalidClientAssertion,
+        PlatformNotReadyException,
+    ) as error:
+        return wrap_access_token_error_resp(get_access_token_error_response(error))
 
 
 # pylint: disable=unused-argument

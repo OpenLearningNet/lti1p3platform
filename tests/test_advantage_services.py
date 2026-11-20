@@ -364,6 +364,7 @@ def test_missing_authorization_header(platform: PlatformConf) -> None:
     ags = _AGSImpl(req, platform)
     resp = ags.handle_resp(ags.handle_get_lineitems)
     assert resp.code == 401
+    assert resp.headers == {"WWW-Authenticate": "Bearer"}
 
 
 def test_authorization_not_bearer(platform: PlatformConf) -> None:
@@ -371,6 +372,7 @@ def test_authorization_not_bearer(platform: PlatformConf) -> None:
     ags = _AGSImpl(req, platform)
     resp = ags.handle_resp(ags.handle_get_lineitems)
     assert resp.code == 401
+    assert resp.headers == {"WWW-Authenticate": "Bearer"}
 
 
 def test_bearer_token_only_scheme(platform: PlatformConf) -> None:
@@ -379,6 +381,7 @@ def test_bearer_token_only_scheme(platform: PlatformConf) -> None:
     ags = _AGSImpl(req, platform)
     resp = ags.handle_resp(ags.handle_get_lineitems)
     assert resp.code == 401
+    assert resp.headers == {"WWW-Authenticate": 'Bearer error="invalid_token"'}
 
 
 def test_bearer_token_too_many_parts(platform: PlatformConf) -> None:
@@ -387,6 +390,7 @@ def test_bearer_token_too_many_parts(platform: PlatformConf) -> None:
     ags = _AGSImpl(req, platform)
     resp = ags.handle_resp(ags.handle_get_lineitems)
     assert resp.code == 401
+    assert resp.headers == {"WWW-Authenticate": 'Bearer error="invalid_token"'}
 
 
 def test_method_not_allowed(platform: PlatformConf, ags_token: str) -> None:
@@ -402,6 +406,26 @@ def test_invalid_token_rejected(platform: PlatformConf) -> None:
     resp = ags.handle_resp(ags.handle_get_lineitems)
     # Invalid JWT — token validation error maps to 401
     assert resp.code == 401
+    assert resp.headers == {"WWW-Authenticate": 'Bearer error="invalid_token"'}
+
+
+def test_expired_token_rejected(platform: PlatformConf) -> None:
+    now = int(time.time())
+    token = jwt_encode(
+        {
+            "iss": PLATFORM_CONFIG["iss"],
+            "sub": "test-tool",
+            "iat": now - 7200,
+            "exp": now - 3600,
+            "scopes": AGS_SCOPE_LINEITEM,
+        },
+        RSA_PRIVATE_KEY_PEM,
+        algorithm="RS256",
+    )
+    ags = _make_ags(platform, token)
+    resp = ags.handle_resp(ags.handle_get_lineitems)
+    assert resp.code == 401
+    assert resp.headers == {"WWW-Authenticate": 'Bearer error="invalid_token"'}
 
 
 def test_platform_not_ready_surfaces_as_500(platform: PlatformConf) -> None:
@@ -424,7 +448,10 @@ def test_token_wrong_scope_rejected(platform: PlatformConf) -> None:
     token = make_bearer_token(NRPS_SCOPE)  # NRPS scope, not AGS
     ags = _make_ags(platform, token)
     resp = ags.handle_resp(ags.handle_get_lineitems)
-    assert resp.code == 401
+    assert resp.code == 403
+    challenge = resp.headers["WWW-Authenticate"]
+    assert challenge.startswith('Bearer error="insufficient_scope", scope="')
+    assert AGS_SCOPE_LINEITEM in challenge
 
 
 # ===========================================================================
@@ -837,6 +864,7 @@ def test_handle_get_members_missing_auth(platform: PlatformConf) -> None:
     )  # type: ignore[arg-type]
     resp = nrps.handle_resp(nrps.handle_get_members)
     assert resp.code == 401
+    assert resp.headers == {"WWW-Authenticate": "Bearer"}
 
 
 def test_handle_get_members_method_not_allowed(

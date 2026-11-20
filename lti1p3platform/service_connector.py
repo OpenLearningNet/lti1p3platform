@@ -4,6 +4,7 @@ import time
 from urllib.parse import urlencode
 import typing_extensions as te
 
+from . import error_codes
 from .exceptions import (
     LtiServiceException,
     LineItemNotFoundException,
@@ -33,10 +34,43 @@ TPage = te.TypedDict(
 F = t.TypeVar("F", bound=t.Callable[..., Response])
 
 
+def _bearer_challenge(
+    error: t.Optional[str] = None, scope: t.Optional[str] = None
+) -> t.Dict[str, str]:
+    """Build the RFC 6750 §3 `WWW-Authenticate` header."""
+    params = []
+    if error:
+        params.append(f'error="{error}"')
+    if scope:
+        params.append(f'scope="{scope}"')
+
+    challenge = "Bearer"
+    if params:
+        challenge = f"{challenge} {', '.join(params)}"
+
+    return {"WWW-Authenticate": challenge}
+
+
+def _invalid_token() -> LtiServiceException:
+    return LtiServiceException(
+        "Invalid LTI 1.3 authentication token",
+        401,
+        _bearer_challenge(error_codes.INVALID_TOKEN),
+    )
+
+
 def authenticate(
     allow_methods: t.Optional[t.List[str]] = None,
     accept: t.Optional[str] = None,
 ) -> t.Callable[[F], t.Callable[["AssignmentsGradesService", t.Any, t.Any], Response]]:
+    """
+    Check the bearer access token on an LTI Advantage service request.
+
+    Rejections follow RFC 6750 §3: a missing token gets 401 with a bare
+    `Bearer` challenge, an invalid token gets 401 with `invalid_token`, and a
+    valid token without a required scope gets 403 with `insufficient_scope`.
+    """
+
     def wrapper(
         func: F,
     ) -> t.Callable[["AssignmentsGradesService", t.Any, t.Any], Response]:
@@ -49,13 +83,12 @@ def authenticate(
             auth = service.request.headers.get("Authorization", "").split()
 
             if not auth or auth[0].lower() != "bearer":
-                raise LtiServiceException("Missing LTI 1.3 authentication token", 401)
+                raise LtiServiceException(
+                    "Missing LTI 1.3 authentication token", 401, _bearer_challenge()
+                )
 
-            if len(auth) == 1:
-                raise LtiServiceException("Invalid LTI 1.3 authentication token", 401)
-
-            if len(auth) > 2:
-                raise LtiServiceException("Invalid LTI 1.3 authentication token", 401)
+            if len(auth) != 2:
+                raise _invalid_token()
 
             if allow_methods:
                 if not service.request.method in allow_methods:
@@ -64,20 +97,25 @@ def authenticate(
                     )
 
             try:
-                if not service.platform_config.validate_token(
+                has_scope = service.platform_config.validate_token(
                     auth[1], service.allowed_scopes
-                ):
-                    raise LtiServiceException(
-                        "Invalid LTI 1.3 authentication token", 401
-                    )
+                )
             except PlatformNotReadyException:
                 # Platform misconfiguration — let this propagate so callers
                 # receive an appropriate 5xx rather than a misleading 401.
                 raise
             except Exception as error:
+                raise _invalid_token() from error
+
+            if not has_scope:
                 raise LtiServiceException(
-                    "Error validating LTI 1.3 authentication token", 401
-                ) from error
+                    "Insufficient scope for this LTI 1.3 service",
+                    403,
+                    _bearer_challenge(
+                        error_codes.INSUFFICIENT_SCOPE,
+                        " ".join(service.allowed_scopes or []),
+                    ),
+                )
 
             resp = func(service, *args, **kwargs)
             if accept:
@@ -99,7 +137,12 @@ class BasicService(ABC):
         try:
             return func(**kwargs)
         except LtiServiceException as error:
-            return Response(result=None, code=error.status_code, message=error.message)
+            return Response(
+                result=None,
+                code=error.status_code,
+                message=error.message,
+                headers=dict(error.headers),
+            )
         except InvalidRequestData as error:
             return Response(result=None, code=400, message=str(error))
         except Exception:  # pylint: disable=broad-exception-caught
